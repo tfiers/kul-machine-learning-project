@@ -1,1 +1,6 @@
+# Mac OS folder index
 .DS_Store
+
+# LaTeX collateral
+*.aux
+*.synctex.gz

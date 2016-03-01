@@ -4,3 +4,4 @@
 # LaTeX collateral
 *.aux
 *.synctex.gz
+*.log

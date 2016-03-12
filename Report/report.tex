@@ -12,6 +12,38 @@
 
 \section{Literature\\
 \subtitle{Takeaways from the articles read}}
+\subsection{Predictive Algorithms for Browser Support of Habitual User Activities on the Web}
+\begin{itemize}
+	\item \textbf{'Sequential pattern'/frequency statistical analysis algorithms [PP-Co] and [PP-Seq]:} Take into account the statistics about web pages and outperform algorithms that don't use this structure.
+	\item \textbf{Association rules:} Not useful predictions due to relatively small data sets of user.
+	\item \textbf{Time decay $\alpha$:} does provide statistically significant improvement of the algorithms for prediction of pages.
+\end{itemize}
+
+\subsection{Automatic Personalization Based on Web Usage Mining}
+\begin{itemize}
+	\item \textbf{General:} association rules + clustering (starts from company perspective thus lots of data)
+	\item \textbf{Process:} data preparation stage, usage mining stage, recommendation engine.
+	\item \textbf{Time spent on page:}For example, studies have suggested [KMM+97] (\textbf{reference says that time spent is useful!?}) that the time spent on a page may not generally be a good indication of interest. Furthermore, the frequency of a reference is not generally a good measure of importance of page to a user; it only indicates the use of a page as a localized navigational nexus for that particular user. On the other hand, whether the URL reference occurs or whether it does not is clearly important. We have thus chosen to use only binary feature weights for our vector representation.
+	\item \textbf{Transaction clusters:} Essentially, each cluster represents a group of users with "similar" access patterns.
+	\item \textbf{Usage clusters:} Each cluster ci represents a group of items (URLs) which are very frequently accessed together across transactions.
+	\item \textbf{Own question Clusters:} Are clusters useful for only one user??
+	\item \textbf{Recommendation process:} considering several factors, projection algorithm, hypergraph, using cut-off
+	\item \textbf{Own question Sliding window n:} Is this useful or standard sliding window of 1 for our problem??
+	\item \textbf{Own question frequent itemsets:} may not be useful due to necessary distance from current url to recommended url.
+\end{itemize}
+
+\subsection{Web Usage Mining: Discovery and Application of Interesting Patterns from Web Data - Phd thesis}
+\begin{itemize}
+	\item \textbf{General:} Structure of process is interesting (data cleaning, pattern discovery, recommendation). List of different algorithms. Overview of whats has been done.
+\end{itemize}
+
+\subsection{What Do Web Users Do? An Empirical Analysis of Web Use}
+\begin{itemize}
+	\item \textbf{Time spent at webpage:} Discussion of this feature + usefulness
+	\item \textbf{Look-ahead navigation:} page 16
+\end{itemize}
+
+
 Example citation: \cite{microsoft-smartfavorites}.
 
 \section{Pipeline\\

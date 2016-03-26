@@ -33,54 +33,49 @@ We have read literature that may be useful for predicting sequences of web click
 
 \paragraph{Bayesian networks} \cite{predictive-statistical-models} proposes Bayesian networks for predictive statistical modelling. Bayesian networks can be used for a variety of predictive modelling tasks. The article states that Bayesian networks provide a compact representation of any probability distribution. Furthermore, these networks explicitly represent causal networks and allow predictions to be made about a number of variables. \cite{search-prediction} discusses Bayesian networks to model web search queries and predict search behaviour. Techniques valid for this problem may also be used for predicting web page sequences.
 
-\paragraph{Markov model} \cite{predictive-statistical-models} proposes Markov models for predictive statistical modelling. Given a number of observed events, the next event is predicted from the probability distribution of the events which have followed these observed events in the past. According to \cite{markov-web-page-accesses} are well suited for modelling and predicting user browsing behaviour on a website. In general, the input for these problems is the sequence of Web pages accessed by a user and the goal is to build Markov models that can be used to predict the Web page that the user will most likely access next. The article states that lower-order Markov models are not very accurate in predicting the user?s browsing behavior, since these models do not look far into the past to correctly discriminate the different observed patterns. The article presents techniques for intelligently combining different order Markov models so that the resulting model has a low state-space complexity and, at the same time, retains the coverage and the accuracy of the All-Kth-Order Markov models.
+\paragraph{Markov model} \cite{predictive-statistical-models} proposes Markov models for predictive statistical modelling. Given a number of observed events, the next event is predicted from the probability distribution of the events which have followed these observed events in the past. According to \cite{markov-web-page-accesses} are well suited for modelling and predicting user browsing behaviour on a website. In general, the input for these problems is the sequence of Web pages accessed by a user and the goal is to build Markov models that can be used to predict the Web page that the user will most likely access next. The article states that lower-order Markov models are not very accurate in predicting the user's browsing behavior, since these models do not look far into the past to correctly discriminate the different observed patterns. The article presents techniques for intelligently combining different order Markov models so that the resulting model has a low state-space complexity and, at the same time, retains the coverage and the accuracy of the All-Kth-Order Markov models.
 
 
-\subsection{Predictive Algorithms for Browser Support of Habitual User Activities on the Web}
-\begin{itemize}
-	\item \textbf{'Sequential pattern'/frequency statistical analysis algorithms [PP-Co] and [PP-Seq]:} Take into account the statistics about web pages and outperform algorithms that don't use this structure.
-	\item \textbf{Association rules:} Not useful predictions due to relatively small data sets of user.
-	\item \textbf{Time decay $\alpha$:} does provide statistically significant improvement of the algorithms for prediction of pages.
-\end{itemize}
 
-\subsection{Automatic Personalization Based on Web Usage Mining}
-\begin{itemize}
-	\item \textbf{General:} association rules + clustering (starts from company perspective thus lots of data)
-	\item \textbf{Process:} data preparation stage, usage mining stage, recommendation engine.
-	\item \textbf{Time spent on page:}For example, studies have suggested [KMM+97] (\textbf{reference says that time spent is useful!?}) that the time spent on a page may not generally be a good indication of interest. Furthermore, the frequency of a reference is not generally a good measure of importance of page to a user; it only indicates the use of a page as a localized navigational nexus for that particular user. On the other hand, whether the URL reference occurs or whether it does not is clearly important. We have thus chosen to use only binary feature weights for our vector representation.
-	\item \textbf{Transaction clusters:} Essentially, each cluster represents a group of users with "similar" access patterns.
-	\item \textbf{Usage clusters:} Each cluster ci represents a group of items (URLs) which are very frequently accessed together across transactions.
-	\item \textbf{Own question Clusters:} Are clusters useful for only one user??
-	\item \textbf{Recommendation process:} considering several factors, projection algorithm, hypergraph, using cut-off
-	\item \textbf{Own question Sliding window n:} Is this useful or standard sliding window of 1 for our problem??
-	\item \textbf{Own question frequent itemsets:} may not be useful due to necessary distance from current url to recommended url.
-\end{itemize}
+\section{Architecture}
 
-\subsection{Web Usage Mining: Discovery and Application of Interesting Patterns from Web Data - Phd thesis}
-\begin{itemize}
-	\item \textbf{General:} Structure of process is interesting (data cleaning, pattern discovery, recommendation). List of different algorithms. Overview of whats has been done.
-\end{itemize}
+\begin{figure}[here]
+\includegraphics[width=1.0\textwidth]{pipeline}
+\caption{General architecture of the application.}
+\label{pipeline}
+\end{figure}
 
-\subsection{What Do Web Users Do? An Empirical Analysis of Web Use}
-\begin{itemize}
-	\item \textbf{Time spent at webpage:} Discussion of this feature + usefulness
-	\item \textbf{Look-ahead navigation:} page 16
-\end{itemize}
+Figure \ref{pipeline} shows what we plan to implement. First, the gathered data is cleaned and put into a form easily usable by our code. Second, this data is used to build a model. Finally, this model is applied to the current browsing session to predict the pages the user wants to reach. Note that the model is a black box here, which means it can be swapped out easily so we can experiment with and compare different learners.\\[8pt]
 
-\subsection{Data Mining for Web Personalization - Mobasher}
-\begin{itemize}
-	\item \textbf{rule mining:} decision rules
-	\item \textbf{collaborative filtering}
-\end{itemize}
+We now describe a few observations on browsing behaviour that we will try to exploit to predict which page the user wants to see.\\[8pt]
 
+When a user is looking for something on the internet, typical web usage goes as follows (\cite{krug}): instead of dutifully reading all of the web page and then carefully choosing what to click on, the user looks around feverishly for anything that looks interesting or vaguely resembles what he is looking for. As soon as he finds a half-decent match, he clicks on it, and if it doesn't pan out, he clicks on the Back button (which is by far the most frequently used browser control) and tries again.\\[8pt]
 
-Example citation: \cite{microsoft-smartfavorites}.
+We can detect and exploit this behaviour: if for example a user goes from page A to page B, but then immediately goes back to page A, to then click another link, we can assume he didn't want to be on page B, and therefore not predict this page. A related way to exploit temporality is the length the user stays on a page. An assumption we could make (and test) is that staying on a page for a longer time correlates with that page being what the user is looking for. Similarly, if a page is the last page of a browsing session, we could assume that this is a page the user is interested in. 'Being the last page of a browing session' could be detected by the fact that, for a certain period of time, no other user action was recorded after loading this page.\\[8pt]
 
-\section{Pipeline}
-What we have in mind for the implementation
+We are planning to start out with a very simple probabilistic model for the learner, where the predicted page is the page that in the past most often followed the current page. We will then extend this to try to predict the last page of the current browsing session, as defined above.\\[8pt]
+
+By working with the real data and using our tool ourselves, we will gain a better understanding of how we can improve this first prototype. Existing techniques that look the most promising and that we will try to apply to our problem are Bayesian networks, Markov chains and hidden Markov models (HMM's).\\[8pt]
+
+The large collection of classification, regression and clustering techniques in machine learning is not directly applicable to the basic problem here, as can also be seen from the literature study above. We see however one situation where classification or clustering might be applicable: when working with the logs of different users simultaneously. We could then try to divide the users into different classes or clusters and build models for each of these. For the currently active user, we classify him and use the corresponding model, which is then hopefully more useful than a model which is trained on all the users simultaneously.  \\[8pt]
+
+We will start coding in Python, because it makes writing readable code easy and because of it’s large collection of great plugins.\\[8pt]
+
 
 \section{Questions}
-To which we want to find the answers by the end of the project
+
+These are some questions to which we want to find the answers by the end of the project: \\[8pt]
+
+\begin{itemize}
+\item Which of the graphical models (Bayesian network, HMM, or something else still) yields the best results, and in what incarnation?
+\item Is it correct that classification, regression and clustering are not applicable to the base problem here?
+\item Which factors influence the computational and memory cost of preprocessing, learning and evaluating, and how?
+\item What is a good metric to compare different learners?
+\item What is a good user interface for this tool?
+\item Would real users want something like this?
+\end{itemize}
+\\[16pt]
+
 
 \bibliographystyle{apa}
 \bibliography{../research}

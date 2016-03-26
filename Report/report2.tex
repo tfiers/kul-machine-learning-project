@@ -1,0 +1,88 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[english]{babel}
+\usepackage{graphicx}
+\graphicspath{{./figures/}}
+\usepackage[colorlinks, linkcolor=black, citecolor=black, urlcolor=black]{hyperref}
+\usepackage{geometry}
+\geometry{tmargin=3cm, bmargin=2.2cm, lmargin=2.2cm, rmargin=2cm}
+\usepackage{todonotes} %Used for the figure placeholders
+\usepackage{ifthen}
+\newcommand{\subtitle}[1]{\normalsize\normalfont{#1}}
+
+\begin{document}
+\newboolean{anonymize}
+% Uncomment to create an anonymized version of your report
+%\setboolean{anonymize}{true}
+
+\input{titlepage}
+
+\section{Introduction}
+This document provides a brief overview of the literature read so far and the chosen approach for predictive web browsing in sequences of web clicks. Section 1 lists the most important takeaways from the literature we have read. Section 2 provides the high level plan we have in mind. Finally, section 3 lists the questions we would like to see answered at the end of our project.
+
+\section{Literature}
+We have read literature that may be useful for predicting sequences of web clicks. This literature overview isn't limited to articles on website click sequences, but we also read articles about similar problems like \textit{web recommendation problems} or \textit{unix command line prediction}. This sections describes the most important takeaways from these articles. We structure the takeaways according to fundamental machine learning techniques that may be used for pattern discovery. 
+
+\paragraph{Decision trees} \cite{davison+hirsch} shortly discusses the use of C4.5 for predicting the next unix terminal command. C4.5 is considered as a common, well-studied decision tree learner with excellent performance. However,  the used variant of the algorithm C4.5 showed some drawbacks in this context. Firstly, it returns only the single most likely command. Secondly, it has significant computational overhead. Finally, it does not incrementally update or improve the decision tree upon receiving new information. The article states that their IPAM (Incremental Probabilistic Action Modelling) algorithm outperforms the C4.5 algorithm.
+
+\paragraph{Clustering} \cite{microsoft-smartfavorites} states that clustering of user pages and activities is a common way of classifying users and  personalizing the content or recommendations to be delivered to them. \cite{automatic-personalization} distinguishes transaction and usage clusters. In comparison with traditional collaborative filtering, the article focuses on user transactions of URL references instead of users themselves. Usage clustering computes clusters of URL references based on how often they occur together across user transactions (rather than clustering transactions, themselves). These techniques may be used to cluster the URL references of our click streams. However, the article starts from a company perspective with a lot of data from different users. Techniques proposed in this way may no be as useful in personal plugin application.
+
+\paragraph{Association rule mining} \cite{microsoft-smartfavorites} analyses algorithms for browser  support of predicting either start of web trails and pages associated with trails. Association rule mining is a technique widely used throughout a range of  discovering sequential patters. The article compares predictions based on their own proposed statistical algorithms with association rules. In the latter case on pages associated with trails, the resulting set of rules failed to recommend any pages in 90\% of the times. The reason was that none of the the rules had a left-hand side that matches the current session. They conclude that, while association rules may be helpful for analysis of large-scale web usage data, the logs of individual users do not contain enough repetitive patterns to yield useful rules.
+
+\paragraph{Statistical analysis approach} \cite{microsoft-smartfavorites} proposes two algorithms [PP-Co] and [PP-Seq] for predicting pages associated with trails. The article claims that these algorithms, which take into account statistics about Web trails and constituent pages in the navigation session, outperform  simpler approaches that do not utilize the structure. Another source, \cite{predictive-statistical-models}, lists different predictive statistical models that can be used for content-based learning (this is used when a user's past behaviour is a reliable indicator of the future behaviour). Bayesian networks and Markov models are discussed below.
+
+\paragraph{Bayesian networks} \cite{predictive-statistical-models} proposes Bayesian networks for predictive statistical modelling. Bayesian networks can be used for a variety of predictive modelling tasks. The article states that Bayesian networks provide a compact representation of any probability distribution. Furthermore, these networks explicitly represent causal networks and allow predictions to be made about a number of variables. \cite{search-prediction} discusses Bayesian networks to model web search queries and predict search behaviour. Techniques valid for this problem may also be used for predicting web page sequences.
+
+\paragraph{Markov model} \cite{predictive-statistical-models} proposes Markov models for predictive statistical modelling. Given a number of observed events, the next event is predicted from the probability distribution of the events which have followed these observed events in the past. According to \cite{markov-web-page-accesses} are well suited for modelling and predicting user browsing behaviour on a website. In general, the input for these problems is the sequence of Web pages accessed by a user and the goal is to build Markov models that can be used to predict the Web page that the user will most likely access next. The article states that lower-order Markov models are not very accurate in predicting the user?s browsing behavior, since these models do not look far into the past to correctly discriminate the different observed patterns. The article presents techniques for intelligently combining different order Markov models so that the resulting model has a low state-space complexity and, at the same time, retains the coverage and the accuracy of the All-Kth-Order Markov models.
+
+
+\subsection{Predictive Algorithms for Browser Support of Habitual User Activities on the Web}
+\begin{itemize}
+	\item \textbf{'Sequential pattern'/frequency statistical analysis algorithms [PP-Co] and [PP-Seq]:} Take into account the statistics about web pages and outperform algorithms that don't use this structure.
+	\item \textbf{Association rules:} Not useful predictions due to relatively small data sets of user.
+	\item \textbf{Time decay $\alpha$:} does provide statistically significant improvement of the algorithms for prediction of pages.
+\end{itemize}
+
+\subsection{Automatic Personalization Based on Web Usage Mining}
+\begin{itemize}
+	\item \textbf{General:} association rules + clustering (starts from company perspective thus lots of data)
+	\item \textbf{Process:} data preparation stage, usage mining stage, recommendation engine.
+	\item \textbf{Time spent on page:}For example, studies have suggested [KMM+97] (\textbf{reference says that time spent is useful!?}) that the time spent on a page may not generally be a good indication of interest. Furthermore, the frequency of a reference is not generally a good measure of importance of page to a user; it only indicates the use of a page as a localized navigational nexus for that particular user. On the other hand, whether the URL reference occurs or whether it does not is clearly important. We have thus chosen to use only binary feature weights for our vector representation.
+	\item \textbf{Transaction clusters:} Essentially, each cluster represents a group of users with "similar" access patterns.
+	\item \textbf{Usage clusters:} Each cluster ci represents a group of items (URLs) which are very frequently accessed together across transactions.
+	\item \textbf{Own question Clusters:} Are clusters useful for only one user??
+	\item \textbf{Recommendation process:} considering several factors, projection algorithm, hypergraph, using cut-off
+	\item \textbf{Own question Sliding window n:} Is this useful or standard sliding window of 1 for our problem??
+	\item \textbf{Own question frequent itemsets:} may not be useful due to necessary distance from current url to recommended url.
+\end{itemize}
+
+\subsection{Web Usage Mining: Discovery and Application of Interesting Patterns from Web Data - Phd thesis}
+\begin{itemize}
+	\item \textbf{General:} Structure of process is interesting (data cleaning, pattern discovery, recommendation). List of different algorithms. Overview of whats has been done.
+\end{itemize}
+
+\subsection{What Do Web Users Do? An Empirical Analysis of Web Use}
+\begin{itemize}
+	\item \textbf{Time spent at webpage:} Discussion of this feature + usefulness
+	\item \textbf{Look-ahead navigation:} page 16
+\end{itemize}
+
+\subsection{Data Mining for Web Personalization - Mobasher}
+\begin{itemize}
+	\item \textbf{rule mining:} decision rules
+	\item \textbf{collaborative filtering}
+\end{itemize}
+
+
+Example citation: \cite{microsoft-smartfavorites}.
+
+\section{Pipeline}
+What we have in mind for the implementation
+
+\section{Questions}
+To which we want to find the answers by the end of the project
+
+\bibliographystyle{apa}
+\bibliography{../research}
+
+\end{document}

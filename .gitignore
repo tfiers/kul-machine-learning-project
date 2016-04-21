@@ -9,3 +9,10 @@
 *.blg
 *.dvi
 *.out
+
+# Python
+*.pyc
+__pycache__
+
+# Data
+*.csv

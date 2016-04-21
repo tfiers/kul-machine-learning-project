@@ -1,0 +1,65 @@
+Setting up urlStreamHandler
+===========================
+
+**WARNING**: This plugin tracks your visited urls and saves them to a csv-file,
+             be carefull not to store sensitive information.
+
+Recording urls and suggesting next urls makes use of two components:
+
+1. A FireFox Greasemonkey plugin to track visited pages.
+2. A Python script that receives the visited urls from the Greasemonkey script,
+   stores them to a csv-file and calls a machine learning model to reply with
+   the best guesses for next urls.
+
+These two scripts are meant to help you get set up. You are, however, allowed
+to change them or reimplement them in another language or browser. The only
+requirement is that your program is able to read in csv files with visited urls
+and learn from those files.
+
+Installation
+------------
+
+1. Install Greasemonkey for FireFox:  
+   https://addons.mozilla.org/de/firefox/addon/greasemonkey/
+2. Open urlStreamHandler.user.js using FireFox. A popup will be shown asking
+   you to install the URL Stream Handler script.
+3. Start urlStreamHandler.py using Python3
+4. Start surfing
+
+Uninstalling / deactivating
+---------------------------
+
+Killing the urlStreamHandler.py script stops saving urls to file.
+
+To deactivate or uninstall the Greasemonkey script:
+
+- Go to `tools>Greasemonkey>Manage User Scripts ...` or click the Greasemonkey
+  icon in the toolbar.
+- Click on 'Disable' or 'Remove'.
+
+CSV format
+----------
+
+The CSV contains four columns:
+
+1. A time stamp in ISO 8601 format
+2. The action type ('load', 'click', 'polling', 'beforeunload')
+3. The current url
+4. The clicked url (if it is a click action and the target is a `<a>` tag)
+
+Notice that in some situations the click event is not registered (e.g. only on
+proper `<a>` tags). Think about data preprocessing to create meaningful streams
+for your tasks.
+
+Questions
+---------
+
+Forward your questions to the Toledo forum.
+
+Copyright
+---------
+
+Copyright (c) 2016, KU Leuven, DTAI Research Group.  
+Part of the course
+[Machine Learning: Project](https://onderwijsaanbod.kuleuven.be/syllabi/e/H0T25AE.htm).
+

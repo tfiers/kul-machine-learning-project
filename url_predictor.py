@@ -72,7 +72,7 @@ def make_page_visits(events):
             next_event = events[i+1]
             # Determine the amount of time the user stayed on this 
             # page. The result is a 'timedelta' object.
-            dt = next_event['ts'] - curent_event['ts']
+            dt = next_event['t'] - curent_event['t']
             # Determine how this page was left.
             if next_event['event_type'] == 'click':
                 exit_type = 'click'

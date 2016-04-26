@@ -57,7 +57,7 @@ def parse(lines):
     return events
 
 
-def mold_into_page_visits(events):
+def make_page_visits(events):
     """ Constructs page visit objects (as dictionaries).
     See the "Data" section in the report and the accompanying figure.
     """
@@ -96,7 +96,7 @@ def preprocess(csv_file_handle):
     # Make a list of 'event' dictionaries.
     events = parse(csv_file_handle)
     # Make a list of 'page visit' dictionaries.
-    page_visits = mold_into_page_visits(events)
+    page_visits = make_page_visits(events)
 
 
 def learn(entries):

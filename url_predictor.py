@@ -76,6 +76,8 @@ def make_page_visits(events):
             # Determine how this page was left.
             if next_event['event_type'] == 'click':
                 exit_type = 'click'
+            elif next_event['event_type'] == 'polling':
+                exit_type = 'forward'
             else:
                 exit_type = 'cut'
             # Create a new page visit object.

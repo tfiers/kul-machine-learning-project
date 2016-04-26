@@ -27,58 +27,80 @@ def get_guesses(url):
         return results
 
 
-def handle_csv(csv_file):
-    lines = csv_file.readlines()
-    entries = parse(lines)
-    cleaned_entries = clean(entries)
-    learn(cleaned_entries)
+def handle_csv(csv_file_handle):
+    """ Trains a model on a csv file.
+    (The csv file should be supplied as a file handle.
+    The model is stored in the global variable 'model').
+    """
+    preprocessed_data = preprocess(csv_file_handle)
+    learn(preprocessed_data)
 
 
 def parse(lines):
-    """ Expects a list of strings with comma separated data and 
-    returns a list of dictionaries.
+    """ Expects a list of strings with comma separated data.
+    Returns a list of dictionaries.
     """
     # The list we'll return.
-    entries = []
+    events = []
     for line in lines:
         # Parse the line as JSON.
         # Add brackets to line so it is valid JSON.
         data = json.loads('[{}]'.format(line))
-        # Make a new dictionary and add it to the entries to be 
+        # Make a new dictionary and add it to the events to be 
         # returned.
-        entries.append({
-            'ts': parse_datetime(data[0]), # timestamp
-            'action': data[1], 
+        events.append({
+            't': parse_datetime(data[0]),
+            'event_type': data[1], 
             'url': data[2],
             'target': data[3],
         })
-    return entries
+    return events
 
 
-def clean(entries):
-    """ Only retains the click entries for simplicity.
+def mold_into_page_visits(events):
+    """ Constructs page visit objects (as dictionaries).
+    See the "Data" section in the report and the accompanying figure.
     """
-    return [entry for entry in entries if entry['action'] == 'click']
+    # The list we'll fill with page visit objects.
+    page_visits = []
+    # Iterate over all events, stopping at 'load' or 'polling' ones.
+    # These events define the start of a page visit.
+    start_events = ['load', 'polling']
+    for i in range(len(events)):
+        curent_event = events[i]
+        if curent_event['event_type'] in start_events:
+            next_event = events[i+1]
+            # Determine the amount of time the user stayed on this 
+            # page. The result is a 'timedelta' object.
+            dt = next_event['ts'] - curent_event['ts']
+            # Determine how this page was left.
+            if next_event['event_type'] == 'click':
+                exit_type = 'click'
+            else:
+                exit_type = 'cut'
+            # Create a new page visit object.
+            page_visits.append({
+                'url': curent_event['url'],
+                't': curent_event['t'], # = time of event
+                'dt' : dt, # dt = delta-t = duration of stay
+                'exit_type': exit_type,
+            })
+    return page_visits
+
+
+def preprocess(csv_file_handle):
+    """ 
+    """
+    # Read the csv file as a list of strings.
+    lines = csv_file.readlines()
+    # Make a list of 'event' dictionaries.
+    events = parse(csv_file_handle)
+    # Make a list of 'page visit' dictionaries.
+    page_visits = mold_into_page_visits(events)
 
 
 def learn(entries):
     """ Trains a model that predicts the most likely destination page
     for each starting url.
     """
-    # We create a map from starting urls to a list of {url: count} dicts.
-    # 'count' is the number of times the 'url' followed the starting url.
-    for entry in entries:
-        starting_url = entry['url']
-        target_url = entry['target']
-        # If the model does not yet contain the starting url..
-        if starting_url not in model:
-            # .. add an empty dictionary for this url.
-            model[starting_url] = {}
-        # If the dictionary for this starting url does not yet have an
-        # entry for the target url..
-        if target_url not in model[starting_url]:
-            # .. add a new entry initiliased to zero for this target url.
-            model[starting_url][target_url] = 0
-        # Increment the number of times the target url followed the 
-        # starting url.
-        model[starting_url][target_url] += 1
+    pass

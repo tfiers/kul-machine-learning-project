@@ -6,70 +6,68 @@
 // @grant       GM_xmlhttpRequest
 // @run-at      document-end
 // ==/UserScript==
-
 try {
   var toppage = (window.top == window.self);
   if (!toppage) {
     return;
   }
-
   var url = window.location.href;
-
-  var send = function(data, onload) {
+  var send = function (data, onload) {
     data.ts = (new Date()).toISOString();
     data_string = JSON.stringify(data);
     GM_xmlhttpRequest({
-      method: "POST",
-      url: "http://localhost:8000",
+      method: 'POST',
+      url: 'http://localhost:8000',
       data: data_string,
       headers: {
-        "Content-Type": "application/json",
-        "Content-Length": data.length
+        'Content-Type': 'application/json',
+        'Content-Length': data.length
       },
-      onerror: function(error) {
+      onerror: function (error) {
         console.log('Calling urlStreamHandler failed', error);
       },
       onload: onload
     });
   };
-
   // Associate a click event with all links
-  var addClickEvent = function(element) {
+  var addClickEvent = function (element) {
     if (element.dataset.dtaitracked) {
       return;
     }
     element.dataset.dtaitracked = true;
-    element.addEventListener('click', function(link) {return function(event) {
-      try {
-        var href = '';
-        if (link.href !== undefined) {
-          href = link.href;
+    element.addEventListener('click', function (link) {
+      return function (event) {
+        try {
+          var href = '';
+          if (link.href !== undefined) {
+            href = link.href;
+          }
+          send({
+            'action': 'click',
+            'target': href,
+            'url': url,
+          });
+        } catch (e) {
+          console.log('An error occured in a click listener', e);
         }
-        send({
-          "action": "click",
-          "target": href,
-          "url": url,
-        });
-      } catch (e) {
-        console.log('An error occured in a click listener', e);
-      }
-    };}(element));
+      };
+    }(element));
   };
-  for (var i=0; i<document.links.length; i++) {
+  for (var i = 0; i < document.links.length; i++) {
     addClickEvent(document.links[i]);
   }
-  var observer = new MutationObserver(function(mutations) {
+  var observer = new MutationObserver(function (mutations) {
     try {
-      mutations.forEach(function(mutation) {
+      mutations.forEach(function (mutation) {
         try {
           var node;
-          for (var i=0; i<mutation.addedNodes.length; i++) {
+          for (var i = 0; i < mutation.addedNodes.length; i++) {
             node = mutation.addedNodes[i];
-            if (node.tagName === "A" || node.tagName === "a") {
+            if (node.tagName === 'A' || node.tagName === 'a') {
               addClickEvent(node);
             } else if (node.getElementsByTagName) {
               var atags = node.getElementsByTagName('a');
-              for (var aidx=0; aidx<atags.length; aidx++) {
+              for (var aidx = 0; aidx < atags.length; aidx++) {
                 addClickEvent(atags[aidx]);
               }
             }
@@ -82,25 +80,25 @@ try {
       console.log('An error occured after a mutation change', e);
     }
   });
-  observer.observe(document.body, {childList:true, subtree:true});
-
-
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
   // Window events
   // Possible events include hashchange, pageshow, popstate, beforeunload
-  window.addEventListener('beforeunload', function(event) {
+  window.addEventListener('beforeunload', function (event) {
     send({
-      "action": 'beforeunload',
-      "url": url
+      'action': 'beforeunload',
+      'url': url
     });
   });
-
   // Catch any other changes by polling the location
-  setInterval(function() {
+  setInterval(function () {
     try {
-      if(location.href !== url) {
+      if (location.href !== url) {
         send({
-          "action": 'polling',
-          "url": location.href,
+          'action': 'polling',
+          'url': location.href,
         });
         url = location.href;
       }
@@ -108,31 +106,37 @@ try {
       console.log('An error occured while processing polled change', e);
     }
   }, 500);
-
   // Send current page load and react to result
   var html = '';
   if (document.body) {
     html = document.body.innerHTML;
   }
   send({
-    "action": "load",
-    "url": url,
-    "top": toppage,
-    "html": html
-  }, function(response) {
+    'action': 'load',
+    'url': url,
+    'top': toppage,
+    'html': html
+  }, function (response) {
     try {
       data = JSON.parse(response.response);
       // TODO: Do something (e.g. show a top bar with the final link of the
       //       suspected sequence)
+      var div = createElement('div');
+      div.style.width = '100px';
+      div.style.height = '100px';
+      div.style.background = 'red';
+      div.style.color = 'white';
+      div.innerHTML = 'Hello';
+      document.body.appendChild(div);
       var best_guess = data.guesses[0][0];
       console.log(best_guess);
       var l = document.links;
-      for (var i=0; i<l.length; i++) {
+      for (var i = 0; i < l.length; i++) {
         // As a simple example, we highlight the link with the highest
         // probability.
         if (l[i].href == best_guess) {
           console.log('Bingo.');
-          l[i].style.backgroundColor = "yellow";
+          l[i].style.backgroundColor = 'yellow';
         }
       }
     } catch (e) {
@@ -142,4 +146,3 @@ try {
 } catch (e) {
   console.log('An error occured', e);
 }
-

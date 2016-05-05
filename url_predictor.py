@@ -1,7 +1,18 @@
 # Activate anaconda environment 'kul-ml'.
+# (On Python2): from __future__ import division
 
 import json
 from dateutil.parser import parse as parse_datetime
+
+# For getting the domain name part of a URL.
+# See http://stackoverflow.com/a/15460894/2611913
+from urllib.parse import urlsplit
+from publicsuffix import PublicSuffixList
+psl = PublicSuffixList()
+def get_domain(url):
+    netloc = urlsplit(url).netloc
+    return psl.get_public_suffix(netloc)
+
 
 # Keys are urls.
 # Values are lists [[url, score], [url, score], ..]
@@ -94,14 +105,20 @@ def make_graph(page_visits):
     for i in range(len(page_visits)):
         # Get the url of the currently visited page.
         url = page_visits[i]['url']
+        dt  = page_visits[i]['dt']
         # If the visited page is already a node in the graph..
         if url in nodes:
             # .. increase the number of times it was visited.
             nodes[url]['num_visits'] += 1
+            # And add how long the user stayed on this page during 
+            # this page visit.
+            nodes[url]['dts'] += [dt]
         else:
             # If not, add a new node, with currently one visit.
             nodes[url] = {
                 'num_visits': 1,
+                'dts': [dt],
+                'domain': get_domain(url),
                 'linked_urls': {},
             }
         # Get a reference to the urls linked from the current node.
@@ -143,18 +160,23 @@ def learn(nodes):
     """
     pass
     # For each starting url:
-    #   - Traverse graph recursively.
-    #   - 
+    #     For each other url = destination url:
+    #         - Find all paths
+    #         - Calculate probabilities of each path
+    #         - Sum weighted probabilities (higher weight to longer paths).
+    #         - Add term for same domain.
+    #         - Add term for [average] time spent on page.
 
 
 def find_paths(nodes, current_url, end_url, travel_history=()):
     """ Recursively calculates all paths without loops through the 
-    graph 'nodes' from 'current_url' to 'end_url'.
+    graph defined by 'nodes' from 'current_url' to 'end_url'.
     'travel_history' is the sequence of urls already "visited" in the
     current traversal.
     """
     # Extend our travel history with the page we're currently at.
-    # We work with tuples because they are immutable.
+    # We work with tuples because they are immutable. 
+    # (We now make a memory copy of the travel history.)
     travel_history += (current_url,)
     # If we're at the end of the recursion..
     if current_url == end_url:
@@ -181,3 +203,18 @@ def find_paths(nodes, current_url, end_url, travel_history=()):
     # Return the list of paths.
     return paths
 
+
+def probability(nodes, path):
+    """ Calculates the probability that a random walker takes
+    the given path trough the graph defined by 'nodes'.
+    """
+    p = 1.0
+    for i in range(len(path)-1):
+        current_url = path[i]
+        next_url = path[i+1]
+        total_visits = nodes[current_url]['num_visits']
+        visits_to_next = nodes[current_url]['linked_urls'][next_url]
+        transition_p = visits_to_next / total_visits # Watch out in Py2
+        p *= transition_p
+        print('{:.6f}  {:.6f}  {}'.format(p, transition_p, next_url))
+    return p

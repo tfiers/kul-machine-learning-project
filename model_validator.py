@@ -24,20 +24,28 @@ def validate(pages):
 		predictions that were correct
 	"""
 	# A dictionary for recording the web pages that are predicted
-	page_prediction_history = {}
+	page_pred_history = {}
 	# A dictionary for recording the number of correct predictions
 	validation = { '1' : 0, '2' : 0, '3': 0}
 	for page in pages:
 		# Check if page is a predicted page
-		# Loop over all primary, secondary and tertiary predictions
-		for key in page_prediction_history:
+		# Higher the right rank prediction element in validation dictionary
+		for key in page_pred_history:
 			if page == key:
-				
-
+				rank = page_pred_history['key']
+				if rank in validation:
+					validation[rank] +=1
+				del page_pred_history['key'] 
 		# Get the predictions for this page
 		# This returns a list of lists
 		predictions = pred.get_guesses(page)
-		#Store predictions in 
+		# Store predictions in page_pred_history
+		for i in range(0,len(predictions)):
+			with predictions[i][0] as web_page:
+				if (predictions[i][0] in page_pred_history) and (predictions[i][1] < page_pred_history[predictions[i][0]]):
+					page_pred_history[web_page] = predictions[i][1]
+
+	return validation
 
 
     

@@ -136,35 +136,19 @@ try {
       div.style.right ="10px";
       div.style.top = "50px";
       div.style.zIndex = "10000";
-	    //div.innerHTML = "<p id=pp>Text goes here</p>";
-      
-      //var newText = document.createTextNode("hello hello");
-      //div.appendChild(newText);
-      
-      //document.body.appendChild(div);
-      
-      var best_guesses = ["http://www.kuleuven.be","http://www.sporza.be","http://www.deredactie.be"]
+	    
+      var best_guesses = data.guesses;
       
       for (var i=0; i<best_guesses.length; i++) {
         var aTag = document.createElement("a");
         var br = document.createElement("br");
-        aTag.setAttribute("href",best_guesses[i]);
-        aTag.innerHTML = " " + (i+1).toString() + " " + best_guesses[i];
+        aTag.setAttribute("href",best_guesses[i][0]);
+        aTag.innerHTML = " " + (i+1).toString() + " " + best_guesses[i][1];
         div.appendChild(aTag);
         div.appendChild(br);
       }
       document.body.appendChild(div);
       
-      /*var best_guess = data.guesses[0][0];
-      var l = document.links;
-      for (var i=0; i<l.length; i++) {
-        // As a simple example, we highlight the link with the highest
-        // probability.
-        if (l[i].href == best_guess) {
-          l[i].style["background-color"]="yellow";
-        }
-      }
-      */
     } catch (e) {
       console.log('An error occured while processing the guesses', e);
     }

@@ -60,7 +60,7 @@ class MyRequestHandler(http.server.SimpleHTTPRequestHandler):
             print('{:<15}: {}'.format(action_str, url))
         print('"'+ts+'", "'+action_str+'", "'+url+'", "'+target+'"',
               file=logfile)
-        # We call our model to learn from url and build up a list of next
+        # Call our model for a list of guesses.
         guesses = url_predictor.get_guesses(url)
         print(guesses)
         response = {
@@ -81,7 +81,7 @@ def start_from_csv(filenames):
     for filename in filenames:
         with open(filename, 'r') as csv_file:
             # Incrementally train our model based on these files
-            url_predictor.handle_csv(csv_file)
+            url_predictor.learn_from(csv_file)
             print('Processing {}'.format(filename))
 
 

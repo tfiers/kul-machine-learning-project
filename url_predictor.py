@@ -4,35 +4,67 @@
 import json
 from dateutil.parser import parse as parse_datetime
 
-# For getting the domain name part of a URL.
-# See http://stackoverflow.com/a/15460894/2611913
 from urllib.parse import urlsplit
 from publicsuffix import PublicSuffixList
 psl = PublicSuffixList()
 def get_domain(url):
-    netloc = urlsplit(url).netloc
-    return psl.get_public_suffix(netloc)
-
-
-# # Keys are urls.
-# # Values are lists [[url, info], [url, info], ..]
-# # of all urls that can be reached from the current page.
-# model = {}
-
-feature_matrix = {}
-
-
-def handle_csv(csv_file_handle):
-    """ Trains a model on a csv file.
-    (The csv file should be supplied as a file handle.
-    The model is stored in the global variable 'model').
+    """ Extracts the domain name part of the given URL.
     """
-    learn(csv_file_handle)
+    # 'netloc' is the subdomain(s) plus the domain name.
+    netloc = urlsplit(url).netloc
+    # See http://stackoverflow.com/a/15460894/2611913
+    domain_name = psl.get_public_suffix(netloc)
+    return domain_name
 
 
-def learn(csv_file_handle):
-    """ Trains a model that predicts the most likely destination pages
-    for each starting url.
+# Our graph and model. Every node corresponds with a web page.
+nodes = {}
+# 
+# Structure of a 'nodes' entry, after all calculation for it is done
+# (all values have a default value for their data type here):
+# 
+# {
+#   'url_A': {
+#       'time_on_page_data': [],
+#       'avg_time_on_page': 0,
+#       'num_visits': 0,
+#       'domain': '',
+#       'direct_links': {
+#           'url_B': 0
+#       },
+#       'paths: {
+#           'url_B': [('')]
+#       }
+#   }
+# }
+
+
+# Three possiblities:
+#       'paths': {
+#           #          p    k    p    k
+#           'url_B': [(0.2, 3), (0.1, 6)]
+#       }
+# 
+# OR:
+# 
+#       'paths': {
+#        #  k
+#           1: { 'url_B': [0.15, 0.3], 'url_C': []}
+#           2: {}
+#       }
+# 
+# OR:
+# 
+#       'paths': {
+#            'url_B': [('url', 'url'), ('url', 'url')]
+#        }
+
+
+def learn_from(csv_file_handle):
+    """ Trains a model -- that predicts the most likely destination 
+    pages for each starting url -- on a csv file.
+    (The csv file should be supplied as a file handle.
+    The model is stored in the global variable 'nodes').
     """
     # PREPROCESSING
     # 
@@ -44,16 +76,27 @@ def learn(csv_file_handle):
     page_visits = make_page_visits(events)
     # Make a graph (as a dictionary of nodes), discarding absolute
     # temporal information and higher-order sequential information.
-    nodes = make_graph(page_visits)
+    # (We modify the global object 'nodes' here).
+    make_graph(page_visits)
     # Annotate each node with the average time spent on that page.
-    # ToDo: f = median, average of max ?
+    # TODO: median, average, or max time on page?
     for P in nodes.values():
-        durations = [d.total_seconds() for d in P['durations']]
-        P['avg_duration'] = average(durations)
+        durations = [t.total_seconds() for t in P['time_on_page_data']]
+        P['avg_time_on_page'] = average(durations)
+
+    # For debugging in shell.
+    return nodes
+
 
     # TRAINING MODEL
     # 
-    feature_matrix = calculate_features(nodes)
+    # ... Done on the fly for each starting url, for now.
+
+
+def average(sequence):
+    """ Returns the arithmetic mean of the given sequence of numbers.
+    """
+    return sum(sequence) / len(sequence) # Py3
 
 
 def parse(lines):
@@ -104,7 +147,7 @@ def make_page_visits(events):
             page_visits.append({
                 'url': curent_event['url'],
                 't': curent_event['t'], # = time of page entry
-                'duration' : duration, # = duration of stay
+                'duration' : duration,
                 'exit_type': exit_type,
             })
     return page_visits
@@ -115,29 +158,30 @@ def make_graph(page_visits):
     """
     # The graph is a dictionary of nodes. The keys are page urls,
     # the values contain urls of pages following the page of the key 
-    # url, and the number of times the key url page was visited.
-    nodes = {}
+    # url, and various metadata (most of which is added later).
     for i in range(len(page_visits)):
         # Get the url of the currently visited page.
         url = page_visits[i]['url']
-        duration  = page_visits[i]['duration']
-        # If the visited page is already a node in the graph..
-        if url in nodes:
-            # .. increase the number of times it was visited.
+        time_on_page  = page_visits[i]['duration']
+        # If the visited page is not yet a node in the graph..
+        if url not in nodes:
+            # .. add a new node, with currently one visit.
+            nodes[url] = {
+                'num_visits': 1,
+                'time_on_page_data': [time_on_page],
+                'domain': get_domain(url),
+                'direct_links': {},
+                'paths': {},
+            }
+        else:
+            # If it is is already a node in the graph,  increase the 
+            # number of times it was visited.
             nodes[url]['num_visits'] += 1
             # And add how long the user stayed on this page during 
             # this page visit.
-            nodes[url]['durations'] += [duration]
-        else:
-            # If not, add a new node, with currently one visit.
-            nodes[url] = {
-                'num_visits': 1,
-                'durations': [duration],
-                'domain': get_domain(url),
-                'linked_urls': {},
-            }
+            nodes[url]['time_on_page_data'].append(time_on_page)
         # Get a reference to the urls linked from the current node.
-        linked_urls = nodes[url]['linked_urls']
+        linked_urls = nodes[url]['direct_links']
         # If this is not the last page visit of the browsing session..
         if i < len(page_visits)-1: 
             # .. get the url of the page visited next.
@@ -155,148 +199,211 @@ def make_graph(page_visits):
     return nodes
 
 
-def average(iterable):
-    """ The input needs to have a finite length.
-    """
-    return sum(iterable) / len(iterable) # Py3
-
-
-# For each starting url:
-#     For each other url = destination url:
-#         - Find all paths
-#         - Calculate probabilities of each path
-#         - Sum weighted probabilities (higher weight to longer paths).
-#         - Add term for same domain.
-#         - Add term for [average] time spent on page.
-
-def calculate_features(nodes):
-    """ 
-    """
-    feature_matrix = {}
-    total_page_visits = sum(P['num_visits'] for P in nodes.values())
-    avg_avg_duration = average([P['avg_duration'] for P in nodes.values()])
-    for url_1, P1 in nodes.items():
-        print('url_1: {}'.format(url_1))
-        feature_matrix[url_1] = {}
-        for url_2, P2 in nodes.items():
-            if url_1 == url_2:
-                continue
-            print('\turl_2: {}'.format(url_2))
-            feature_matrix[url_1][url_2] = {
-                'paths': find_paths(nodes, url_1, url_2),
-                'same_domain': (P1['domain'] == P2['domain']),
-                'absolute_p': P2['num_visits'] / total_page_visits, # Py3
-                'relative_duration': P2['avg_duration'] / avg_avg_duration,
-            }
-    return feature_matrix
-
-
-def find_paths(nodes, current_url, end_url, travel_history=()):
-    """ Recursively calculates all paths without loops from 
-    'current_url' to 'end_url' through the graph defined by 'nodes'.
-    ('travel_history' is the sequence of urls already "visited" in the
-    current traversal. Only used internally.)
-    """
-    # Extend our travel history with the page we're currently at.
-    # We work with tuples because they are immutable. 
-    # (We now make a memory copy of the travel history.)
-    travel_history += (current_url,)
-    # If we're at the end of the recursion..
-    if current_url == end_url:
-        # .. return a list of only one path.
-        return [travel_history]
-
-    # The list of paths from the current node (url / page) to the
-    # destination url that we'll return.
-    paths = []
-    # A dictionary of pages directly reachable from the current page.
-    linked_urls = nodes[current_url]['linked_urls']
-    # print(linked_urls)
-    # For each such page..
-    for next_url in linked_urls:
-        # .. if it is not already in the travel history 
-        # (to avoid loops)..
-        if next_url not in travel_history:
-            # .. ask for a list of paths from it to the destination 
-            # page.
-            new_paths = find_paths(nodes, next_url, end_url, travel_history)
-            # Add each such new (complete) path to the list of paths
-            # we'll return.
-            paths += new_paths
-    # Return the list of paths.
-    return paths
-
-
 
 
 # --------------------------------------------------------------------
 
 
+def get_guesses(url_1):
+    """ Given a starting url 'url_1', returns a list of most likely
+    destination pages. """
+    # Get the metadata of the page at url_1.
+    P1 = nodes[url_1]
+    # Count total number of page visits in the data.
+    num_visits_data = [P['num_visits'] for P in nodes.values()]
+    global_visits = sum(num_visits_data)
+    # Average time on page, averaged over all pages.
+    avg_time_on_page_data = [P['avg_time_on_page'] for P in nodes.values()]
+    avg_avg_time_on_page = average(avg_time_on_page_data)
+    # The list of other urls we'll fill, annotated with scores.
+    guesses = []
+    # Loop over all other urls.
+    # (To find the other url that maximises a score.)
+    for url_2, P2 in nodes.items():
+        # Don't predict the page the user is currently on:
+        if url_2 == url_1:
+            # just skip this url_2.
+            continue
+        # Calculate all possible paths without loops from url_1
+        # to url_2 through the graph defined in 'nodes'.
+        paths = find_paths(url_1, url_2)
+        # Calculate the probability of each path.
+        # Sum these probabilities, giving a higher weight to longer
+        # paths (as these are more useful to the user).
+        # (TODO: why exponential in length L?)
+        # L         1    2    3    4     5    6     7     8     9  
+        # weight
+        # 1.1**L    1.1  1.2  1.3  1.4   1.6  1.7   1.9   2.1   2.3
+        # 2*L       2    4    6    8    10   12    14    16    18  
+        # L**2      1    4    9    16   25   36    49    64    81  
+        # 2**L      2    4    8    16   32   64   128   256   512  
+        p_rel = sum(probability(path) * 1.1**len(path) \
+                    for path in paths)
 
-def probability(nodes, path):
+        # 
+        # TODO: marginale verdeling p(Xn=P2) is eigenlijk verdeling
+        # over nodes op tijdstip n (we kunnen n->inf nemen).
+        # ---Dit hier is p(X0=P2)---   -> Not. We hebben geen initiële 
+        # verdeling (?)
+        p_abs = P2['num_visits'] / global_visits # Py3
+
+        # Check if url_1 and url_2 are on the same domain.
+        same_domain = (P1['domain'] == P2['domain'])
+        # Convert this into a number (where False->0 and True->1)
+        D = same_domain+0.5
+
+        # Calculate the relative duration of stay on P2.
+        T = P2['avg_time_on_page'] / avg_avg_time_on_page # Py3
+
+        # Combine the above features to calculate (estimate) the 
+        # total probability that the user on P1 wants to go to P2.
+        # "p(P2|P1) ~= p(P2) *  p(P1|P2)"
+        # p(D=P2 | S=P1) * p(S=P1) = p(S=P1 | D=P2) * p(D=P2)
+        p_tot = D * p_rel * T * p_abs
+
+        # Ok, to do it correctly:
+        # random variable S = user is currently on page s
+        # random variable D = user want to go to page d
+        # p(S=s)
+        # p(D=d)
+        # p(D=d AND S=s) = p(D=d, S=s) = p(D=d | S=s) * p(S=s)
+        #                              = p(S=s | D=d) * p(D=d)
+        # 
+        # With history:
+        # random variable Si = user vistied page si i pages ago.
+        # p(S0=s0)
+        # p(S1=s1, S0=s0)
+        # p(Sn=sn, ..., S1=s1, S0=s0)
+        # p(Sn=sn, ..., S1=s1, S0=s0, D=d)
+        # 
+        # p(S1=s1, S0=s0, D=d) = p(D=d | S1=s1, S0=s0) * p(S1=s1, S0=s0)
+        # p(D=d | S1=s1, S0=s0) = p(S1=s1, S0=s0 | D=d) / c
+        #  -- naive Bayes assumption: --
+        #                       = p(S1=s1 | D=d) * p(S0=s0 | D=d)  / c
+
+        # print(url_2)
+        # print('p_tot = D     * p_rel * T     * p_abs')
+        # print('{:.3f} = {:.3f} * {:.3f} * {:.3f} * {:.3f}'.format(
+        #       p_tot,   D,      p_rel,  T,      p_abs))
+        # print()
+
+        guesses.append((url_2, p_tot))
+        print(url_2)
+
+    # Return the x highest scoring candidates.
+    x = 3
+    return sorted(guesses, reverse=True, key=lambda g: g[1])[:x]
+
+
+def find_paths(current_url, end_url, travel_history=()):
+    """ Calculates all paths without loops from 'current_url' to 
+    'end_url' through the graph defined in 'nodes'.
+    None of the returned paths will contain a node in 'travel_history'.
+    """
+    # The list of paths from the current url to the end url. 
+    paths = []
+    # Extend our travel history with the page we're currently at.
+    # We work with tuples because they are immutable. 
+    # (We now make a copy in memory of the travel history.)
+    travel_history += (current_url,)
+    # Check whether we already calculated paths from the current url 
+    # to the destination url.
+    # (This is dynamic programming AKA memoization.)
+    existing_paths = nodes[current_url]['paths'].get(end_url, None)
+    if existing_paths is not None:
+        # If we do, simply return those -- but only the ones where
+        # none of the nodes have been visited yet in the current 
+        # recursive function call stack.
+        for path in existing_paths:
+            if not any((node in path) for node in travel_history):
+                paths.append(path)
+    else:
+        # Calculate and store new paths.
+        # 
+        # If we're at the end of the recursion ..
+        if current_url == end_url:
+            # .. make a list of only one path. 
+            # (Note the comma for constructing a tuple).
+            paths.append((current_url,))
+        else:
+            # Loop over all pages pages directly reachable from the 
+            # current page.
+            linked_urls = nodes[current_url]['direct_links']
+            for next_url in linked_urls:
+                # If we would go to a page that's already visited
+                # in this recursive function call stack ..
+                if next_url in travel_history:
+                    # .. skip this next page: we don't want loops.
+                    continue
+                # If not:
+                # Ask for a list of paths from this next page to the 
+                # destination page, omitting pages we've already
+                # visited.
+                new_paths = find_paths(next_url, end_url, travel_history)
+                # For each such new path from next_url to end_url ..
+                for new_path in new_paths:
+                    # .. add a new path that goes:
+                    # "current_url + path(next_url->end_url)"
+                    # to the list of paths from current_url to end_url.
+                    paths.append((current_url,)+new_path)
+        if len(travel_history) == 1:
+            # Add the calculated list of paths to the model.
+            nodes[current_url]['paths'][end_url] = paths
+    # Return the list of paths.
+    return paths
+
+
+def probability(path):
     """ Calculates the probability that a random walker takes
-    the given path trough the graph defined by 'nodes'.
+    the given path trough the graph defined in 'nodes'.
     """
     p = 1.0
     for i in range(len(path)-1):
         current_url = path[i]
         next_url = path[i+1]
         total_visits = nodes[current_url]['num_visits']
-        visits_to_next = nodes[current_url]['linked_urls'][next_url]
-        transition_p = visits_to_next / total_visits # Py3
-        # print('{:.6f}  {}/{}  {}'.format(p, visits_to_next, total_visits, current_url))
+        hops_to_next = nodes[current_url]['direct_links'][next_url]
+        transition_p = hops_to_next / total_visits # Py3
+        # print('{:.6f}  {}/{}  {}'.format(p, hops_to_next, 
+        #                                  total_visits, current_url))
         p *= transition_p
     # print('{:.6f}       {}'.format(p, next_url))
     return p
 
-def get_guesses(url):
-    """ Given a url, returns a list of the most probable destination
-    urls. Each entry is of the form [url, info].
-    The entries are sorted from highest to lowest probabibility.
-
-    Example:
-    [['https://dtai.cs.kuleuven.be/events/leuveninc', 0.9],
-     ['https://google.com', 0.5]]
-    """
-    url_1 = url
-    destinations = []
-    for url_2 in feature_matrix[url]:
-        score = calculate_score(url_1, url_2, feature_matrix)
-        destinations.append([
-            url_2,
-            format_destination(url_2, score),
-            score,
-        ])
-    destinations = sorted(destinations,
-                          key=lambda d: d[-1],
-                          reverse=True)
-    return destinations[:3]
-
-
-def calculate_score(url_1, url_2, feature_matrix):
-    """ 
-    """
-    f = feature_matrix[url_1][url_2]
-    p_abs = f['absolute_p']
-    p_rel = sum(probability(p) * (1.1)**len(p) for p in path)
-    T = f['relative_duration']
-    D = f['same_domain'] + 0.5
-    # P(P2|P1) =  P(P2)        *    P(P1|P2)
-    return        p_abs * T    *    p_rel * D
-
 
 def format_destination(url, score):
-    """ 
+    """ Formats a destination url nicely for the UI, with some
+    additional info for peeking inside the workings of the model.
     """
     return '{}  {}'.format(shorten_url(url), score)
 
 
-def shorten_url(url):
-    """ 
+def shorten_url(url, max_len=50):
+    """ Leaves urls shorter than 'max_len' untouched.
+    Longer urls get their middle part replaced by '...' so they
+    are max_len long.
+
+    max_len should be 5 or greater.
     """
-    MAX_LEN = 50
-    if len(url) <= MAX_LEN:
+    if len(url) <= max_len:
         return url
     else:
-        n = MAX_LEN//2
-        return '{}...{}'.format(url[:n-1], url[-n+2:])
+        n, o = divmod(max_len, 2)
+        return '{}...{}'.format(url[:n-1], url[-n+2-o:])
+
+
+def test():
+    from time import time
+    learn_from(open('u23_1.csv'))
+    t0 = time()
+    # for url in nodes:
+    #     get_guesses(url)
+    get_guesses('http://www.standaard.be/')
+    print(time()-t0)
+
+    # Timing "get_guesses('http://www.standaard.be/')":
+    # 14.93 seconds without memoization
+    #  0.05 seconds with memoization (298x faster)
+
+if __name__ == '__main__':
+    test()

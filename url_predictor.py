@@ -3,6 +3,8 @@
 
 import json
 from dateutil.parser import parse as parse_datetime
+from collections import defaultdict
+from time import time
 
 from urllib.parse import urlsplit
 from publicsuffix import PublicSuffixList
@@ -33,9 +35,6 @@ nodes = {}
 #       'direct_links': {
 #           'url_B': 0
 #       },
-#       'paths: {
-#           'url_B': [('')]
-#       }
 #   }
 # }
 
@@ -111,6 +110,16 @@ nodes = {}
 # - For data structure 2 above: loop over all k's, lookup url_2 each time.
 # Ok, so lookup ease is no big argument to prefer 1.
 # --> We go for data structure 2.
+# 
+# I guess: not optimised (not precomputed) method 1) will be fast enough
+# for on the fly calculation: o^k lookups.
+# where o is mean branching factor per page. Take 0=2, k=10: 1024 lookups.
+# (For k=16 -> 65 500 lookups.  k=20 -> 1M lookups)
+# Algo needn't be recursive by the way. That's nice ( :) )
+# 
+# 
+# Conclusion: use non-precomputet method 1), non recursively.
+# No need to store paths.
 
 
 def learn_from(csv_file_handle):
@@ -224,7 +233,6 @@ def make_graph(page_visits):
                 'time_on_page_data': [time_on_page],
                 'domain': get_domain(url),
                 'direct_links': {},
-                'paths': {},
             }
         else:
             # If it is is already a node in the graph,  increase the 
@@ -352,78 +360,25 @@ def get_guesses(url_1):
 
 
 
-def generate_paths(start_url, max_len, current_url=None):
-    # The
-    paths = []
-    # Loop over all pages pages directly reachable from the current 
-    # page.
-    linked_urls = nodes[current_url]['direct_links']
-    for next_url in linked_urls:
-
-
-
-
-
-
-
-
-
-
-def find_paths(current_url, end_url, travel_history=()):
-    """ Calculates all paths without loops from 'current_url' to 
-    'end_url' through the graph defined in 'nodes'.
-    None of the returned paths will contain a node in 'travel_history'.
+def generate_paths(start_url, max_len):
+    """ Returns all paths of length up to the given maximum length 
+    through the graph defined in 'nodes' starting in the given url.
+    Paths may contain loops.
     """
-    # The list of paths from the current url to the end url. 
-    paths = []
-    # Extend our travel history with the page we're currently at.
-    # We work with tuples because they are immutable. 
-    # (We now make a copy in memory of the travel history.)
-    travel_history += (current_url,)
-    # Check whether we already calculated paths from the current url 
-    # to the destination url.
-    # (This is dynamic programming AKA memoization.)
-    existing_paths = nodes[current_url]['paths'].get(end_url, None)
-    if existing_paths is not None:
-        # If we do, simply return those -- but only the ones where
-        # none of the nodes have been visited yet in the current 
-        # recursive function call stack.
-        for path in existing_paths:
-            if not any((node in path) for node in travel_history):
-                paths.append(path)
-    else:
-        # Calculate and store new paths.
-        # 
-        # If we're at the end of the recursion ..
-        if current_url == end_url:
-            # .. make a list of only one path. 
-            # (Note the comma for constructing a tuple).
-            paths.append((current_url,))
-        else:
-            # Loop over all pages pages directly reachable from the 
-            # current page.
-            linked_urls = nodes[current_url]['direct_links']
-            for next_url in linked_urls:
-                # If we would go to a page that's already visited
-                # in this recursive function call stack ..
-                if next_url in travel_history:
-                    # .. skip this next page: we don't want loops.
-                    continue
-                # If not:
-                # Ask for a list of paths from this next page to the 
-                # destination page, omitting pages we've already
-                # visited.
-                new_paths = find_paths(next_url, end_url, travel_history)
-                # For each such new path from next_url to end_url ..
-                for new_path in new_paths:
-                    # .. add a new path that goes:
-                    # "current_url + path(next_url->end_url)"
-                    # to the list of paths from current_url to end_url.
-                    paths.append((current_url,)+new_path)
-        if len(travel_history) == 1:
-            # Add the calculated list of paths to the model.
-            nodes[current_url]['paths'][end_url] = paths
-    # Return the list of paths.
+    # The paths we'll return, indexed first by length k,
+    # then by ending url.
+    paths = {
+        0: {
+            start_url: [(start_url,)]
+        }
+    }
+
+    for k in range(max_len):
+        paths[k+1] = defaultdict(list)
+        for last_url in paths[k]:
+            for path in paths[k][last_url]:
+                for next_url in nodes[last_url]['direct_links']:
+                    paths[k+1][next_url].append(path + (next_url,))
     return paths
 
 
@@ -466,8 +421,13 @@ def shorten_url(url, max_len=50):
         return '{}...{}'.format(url[:n-1], url[-n+2-o:])
 
 
+def timef(f, arg):
+    t0 = time()
+    f(*arg)
+    print(time()-t0)
+
+
 def test():
-    from time import time
     learn_from(open('u23_1.csv'))
     t0 = time()
     # for url in nodes:
@@ -479,5 +439,15 @@ def test():
     # 14.93 seconds without memoization
     #  0.05 seconds with memoization (298x faster)
 
+    # lines = open('u23_1.csv').readlines()
+    # events = url_predictor.parse(lines)
+    # page_visits = url_predictor.make_page_visits(events)
+    # for pv in page_visits:
+    #    print(url_predictor.shorten_url(pv['url'], 80))
+
 if __name__ == '__main__':
     test()
+
+
+# Execute on import:
+learn_from(open('u23_1.csv'))

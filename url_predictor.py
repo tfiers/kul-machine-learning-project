@@ -1,10 +1,12 @@
 # Activate anaconda environment 'kul-ml'.
-# (On Python2): from __future__ import division
+# (On Python 2): from __future__ import division
+# For all divisions. Otherwise this could should work on Py2.
 
 import json
 from dateutil.parser import parse as parse_datetime
 from collections import defaultdict
 from time import time
+from numpy import average, median
 
 from urllib.parse import urlsplit
 from publicsuffix import PublicSuffixList
@@ -140,11 +142,6 @@ def learn_from(csv_file_handle):
     # temporal information and higher-order sequential information.
     # (We modify the global object 'nodes' here).
     make_graph(page_visits)
-    # Annotate each node with the average time spent on that page.
-    # TODO: median, average, or max time on page?
-    for P in nodes.values():
-        durations = [t.total_seconds() for t in P['time_on_page_data']]
-        P['avg_time_on_page'] = average(durations)
 
     # For debugging in shell.
     return nodes
@@ -153,12 +150,6 @@ def learn_from(csv_file_handle):
     # TRAINING MODEL
     # 
     # ... Done on the fly for each starting url, for now.
-
-
-def average(sequence):
-    """ Returns the arithmetic mean of the given sequence of numbers.
-    """
-    return sum(sequence) / len(sequence) # Py3
 
 
 def parse(lines):
@@ -196,8 +187,9 @@ def make_page_visits(events):
         if curent_event['event_type'] in start_events:
             next_event = events[i+1]
             # Determine the amount of time the user stayed on this 
-            # page. The result is a 'timedelta' object.
-            duration = next_event['t'] - curent_event['t']
+            # page.
+            timedelta = next_event['t'] - curent_event['t']
+            duration = timedelta.total_seconds()
             # Determine how this page was left.
             if next_event['event_type'] == 'click':
                 exit_type = 'click'
@@ -270,12 +262,22 @@ def get_guesses(url_1):
     destination pages. """
     # Get the metadata of the page at url_1.
     P1 = nodes[url_1]
-    # Get the average number of page visits per page.
-    num_visits_data = [P['num_visits'] for P in nodes.values()]
+
+    # All node metadata.
+    Ps = nodes.values()
+
+    # Calculate the average number of page visits per page
+    # and the total number of page visits in the analysed log(s).
+    num_visits_data = [P['num_visits'] for P in Ps]
     avg_visits = average(num_visits_data)
-    # Average time on page, averaged over all pages.
-    avg_time_on_page_data = [P['avg_time_on_page'] for P in nodes.values()]
-    avg_avg_time_on_page = average(avg_time_on_page_data)
+    tot_visits = sum(num_visits_data)
+
+    # Calculate average time on page, averaged over all pages.
+    # and total time spent on each page, summed over all pages.
+    # (We flatten a list of lists on the next line.)
+    time_on_page_data = [dt for P in Ps for dt in P['time_on_page_data']]
+    global_avg_time_on_page = average(time_on_page_data)
+    tot_time = sum(time_on_page_data)
 
     # A dictionary indexed by possible destination page.
     # The values contain data about the probability of this page
@@ -283,7 +285,7 @@ def get_guesses(url_1):
     destinations = {}
 
     # Generate all paths up to a certain depth starting from 'url_1'.
-    max_len = 16
+    max_len = 12
     paths = generate_paths(start_url=url_1, max_len=max_len)
     # Aggregate them by destination page.
     for k in range(1, max_len+1):
@@ -295,39 +297,90 @@ def get_guesses(url_1):
                 }
             else:
                 destinations[url_2]['paths'].extend(new_paths)
+
+    # Remove the current url from the possible destinations.
+    # (We don't want to predict the currrent url).
+    destinations.pop(url_1, None)
     
+    # Calculate and store features and score(s) for each possible
+    # destination url.
     for url_2 in destinations:
         # Get the node metadata of the page at url_2.
         P2 = nodes[url_2]
+
+        # --- Calculate features ---
+        # 
         # Calculate the probability of each path.
         # Sum these probabilities, giving a higher weight to longer
         # paths (as these are more useful to the user).
         p_travel = sum(probability(path) * 1.1**len(path) \
                        for path in destinations[url_2]['paths'])
+        
         # Calculate the relative amount of times P2 was visited 
         # in the analysed log(s).
-        N_rel = P2['num_visits'] / avg_visits # Py3
+        N_rel = P2['num_visits'] / avg_visits
+        # Calculate the proportion of times P2 was visited
+        N_prop = P2['num_visits'] / tot_visits 
+
         # Calculate the relative average duration of stay on P2.
-        dt_rel = P2['avg_time_on_page'] / avg_avg_time_on_page # Py3
+        avg_time_on_page = average(P2['time_on_page_data'])
+        dt_rel = avg_time_on_page / global_avg_time_on_page
+        # Calculate the proportion of time the user was on P2.
+        tot_time_on_page = sum(P2['time_on_page_data'])
+        dt_prop = tot_time_on_page / tot_time
+
         # Check if url_1 and url_2 are on the same domain.
         same_domain = (P1['domain'] == P2['domain'])
 
         # [Calculate more features]
 
         # Save features in dictionary for later lookup.
-        destinations[url_2]['N_rel']
+        destinations[url_2]['N_rel']        = N_rel
+        destinations[url_2]['N_prop']       = N_prop
+        destinations[url_2]['dt_rel']       = dt_rel
+        destinations[url_2]['dt_prop']      = dt_prop
+        destinations[url_2]['same_domain']  = same_domain
+        destinations[url_2]['p_travel']     = p_travel
 
         # [Calculate score(s)]
+        # p(D=P2 | S=P1)
+        destinations[url_2]['Bayes_p'] = \
+            p_travel * same_domain   * N_prop * dt_prop
+        #   p(S=P1 | D=P2)           * p(D=P2)             / p(S=P1)
+        # (The denominator is omitted as this is independent of P2).
 
-
-
-
-        guesses.append((url_2, p_tot))
-        print(url_2)
+    guesses = [url_2 for url_2 in destinations]
+    guesses = sorted(guesses, reverse=True, 
+                     key=lambda url_2: destinations[url_2]['Bayes_p'])
 
     # Return the x highest scoring candidates.
+    # Print info about them.
     x = 3
-    return sorted(guesses, reverse=True, key=lambda g: g[1])[:x]
+
+    print()
+    print('   N_rel   N_prop  dt_rel  dt_prop same_d  p_trav')
+    #      -------|-------|-------|-------|-------|-------|
+    print()
+    for url_2 in guesses[:x]:
+        md = destinations[url_2] # destination metadata
+        print(url_2)
+        print()
+        print(''.join(['{:>8.3f}']*6).format(md['N_rel'],
+                                            md['N_prop'],
+                                            md['dt_rel'],
+                                            md['dt_prop'],
+                                            md['same_domain'],
+                                            md['p_travel']))
+        print('Bayes p: {:.6f}'.format(md['Bayes_p']))
+        print()
+        print()
+
+    return guesses[:x]
+
+
+def sigmoid(t):
+    """ Returns the 
+    """
 
 
 def generate_paths(start_url, max_len):
@@ -362,7 +415,7 @@ def probability(path):
         next_url = path[i+1]
         total_visits = nodes[current_url]['num_visits']
         hops_to_next = nodes[current_url]['direct_links'][next_url]
-        transition_p = hops_to_next / total_visits # Py3
+        transition_p = hops_to_next / total_visits
         # print('{:.6f}  {}/{}  {}'.format(p, hops_to_next, 
         #                                  total_visits, current_url))
         p *= transition_p
@@ -381,7 +434,7 @@ def shorten_url(url, max_len=50):
     """ Leaves urls shorter than 'max_len' untouched.
     Longer urls get their middle part replaced by '...' so they
     are max_len long.
-
+    
     max_len should be 5 or greater.
     """
     if len(url) <= max_len:
@@ -391,7 +444,7 @@ def shorten_url(url, max_len=50):
         return '{}...{}'.format(url[:n-1], url[-n+2-o:])
 
 
-def timef(f, arg):
+def time_f(f, arg):
     t0 = time()
     f(*arg)
     print(time()-t0)

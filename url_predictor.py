@@ -158,7 +158,8 @@ def parse(lines):
     """
     # The list we'll return.
     events = []
-    for line in lines:
+    # Loop over all non-empty lines.
+    for line in filter(lines):
         # Parse the line as JSON.
         # Add brackets to line so it is valid JSON.
         data = json.loads('[{}]'.format(line))
@@ -345,7 +346,9 @@ def get_guesses(url_1):
         # [Calculate score(s)]
         # p(D=P2 | S=P1)
         destinations[url_2]['Bayes_p'] = \
-            p_travel * same_domain   * N_prop * dt_prop
+            p_travel * same_domain   * N_prop * dt_prop \
+        / (sum(P1['time_on_page_data'])/tot_time 
+            * P1['num_visits'] / tot_visits)
         #   p(S=P1 | D=P2)           * p(D=P2)             / p(S=P1)
         # (The denominator is omitted as this is independent of P2).
 
@@ -358,7 +361,7 @@ def get_guesses(url_1):
     x = 3
 
     print()
-    print('   N_rel   N_prop  dt_rel  dt_prop same_d  p_trav')
+    print('   N_rel  dt_rel  N_prop dt_prop  same_d  p_trav')
     #      -------|-------|-------|-------|-------|-------|
     print()
     for url_2 in guesses[:x]:
@@ -366,11 +369,11 @@ def get_guesses(url_1):
         print(url_2)
         print()
         print(''.join(['{:>8.3f}']*6).format(md['N_rel'],
-                                            md['N_prop'],
-                                            md['dt_rel'],
-                                            md['dt_prop'],
-                                            md['same_domain'],
-                                            md['p_travel']))
+                                             md['dt_rel'],
+                                             md['N_prop'],
+                                             md['dt_prop'],
+                                             md['same_domain'],
+                                             md['p_travel']))
         print('Bayes p: {:.6f}'.format(md['Bayes_p']))
         print()
         print()
@@ -379,8 +382,9 @@ def get_guesses(url_1):
 
 
 def sigmoid(t):
-    """ Returns the 
+    """ Returns the 3.475
     """
+    pass
 
 
 def generate_paths(start_url, max_len):

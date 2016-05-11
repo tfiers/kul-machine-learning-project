@@ -10,8 +10,9 @@ psl = PublicSuffixList()
 def get_domain(url):
     """ Extracts the domain name part of the given URL.
     """
-    # 'netloc' is the subdomain(s) plus the domain name.
+    # 'netloc' = subdomain(s) plus domain name.
     netloc = urlsplit(url).netloc
+    # Extract only the domain name itself ('public suffix').
     # See http://stackoverflow.com/a/15460894/2611913
     domain_name = psl.get_public_suffix(netloc)
     return domain_name
@@ -48,8 +49,8 @@ nodes = {}
 # OR:
 # 
 #       'paths': {
-#        #  k
-#           1: { 'url_B': [0.15, 0.3], 'url_C': []}
+#        #  k              p     p          
+#           1: { 'url_B': [0.15, 0.3]}
 #           2: {}
 #       }
 # 
@@ -58,6 +59,58 @@ nodes = {}
 #       'paths': {
 #            'url_B': [('url', 'url'), ('url', 'url')]
 #        }
+
+
+# Two possibilities for filling the 'paths' value of each node:
+# 1) Node per node
+# 2) k per k
+# 
+# 1) > generate_paths(travel_history, max_steps)
+#       Each function adds entries for it's step = k = len(travel_history)
+#       to the first url of the travel history.
+#       Initial call: generate_paths((url_1,), k)  (k=10 eg)
+# 
+#       Optimisation: we can exploit fact that: after a node (P1) is done,
+#       it's stored paths are complete. We can use these when calculating
+#       paths from another node (P2): Eg. Direct link from P2 to P1
+#       -> we can get all paths of length up to k starting with P2->P1 
+#       by prepending P2 to all paths of length up to k-1 starting from P1.
+#       FOR THIS OPTIMISATION WE NEED THE SECOND DATA STRUCTURE.
+#       (The others would be kindof a pain to use).
+#       --> Less and less traversals (jumps through memory) when completing
+#       the 'paths' value for more nodes.
+#       (Maybe: not much point in calculating and storing these paths
+#       beforehand. Maybe do it on the fly.
+#       Allright: first do it on the fly, then see: if fast enough: 
+#       leave it, it's good. If not fast enough, do precalc, and try 
+#       optimisation. This one, or '2)' below).
+# 
+# 2) > k = 1  -> for each node: copy the 'direct_links' to k=1 entry
+#    > k = 2  -> for each node:  for each k=1 entry: append with results 
+#                of lookup at that entry's k=1. Add all results to k=2 entry here.
+#    > k = 3  -> for each node:  for each k=2 entry: append with results 
+#                of lookup at that entry's k=1. Add all results to k=3 entry here.
+#    > etc.
+#    
+#    Optimisation.
+#    Question: can we exploit the fact that, when we've 
+#    calculated all paths up to length k = 4 for each node (eg.),
+#    we could, for each node, quickly calculate all paths of length
+#    5 (4+1), 6 (4+2), 7 (4+3) and 8 (4+4).
+#    Maybe, let's see.
+#    > k = 1
+#    > k = 2 (1+1)
+#    > k = 3 (2+1) and k = 4 (2+2)
+#    > k = 5, k = 6, k = 7, k = 8
+#    > k = 9, k = 10, k = 11, k = 12, k = 13, k = 14, k = 15, k = 16
+#    > etc.
+# 
+# 
+# For lookups (calculating score(url1->url2)), we'd do:
+# - For data structure 1 (and 3) above: simple lookup at url_2
+# - For data structure 2 above: loop over all k's, lookup url_2 each time.
+# Ok, so lookup ease is no big argument to prefer 1.
+# --> We go for data structure 2.
 
 
 def learn_from(csv_file_handle):
@@ -270,7 +323,7 @@ def get_guesses(url_1):
         #                              = p(S=s | D=d) * p(D=d)
         # 
         # With history:
-        # random variable Si = user vistied page si i pages ago.
+        # random variable Si = user visited page si i pages ago.
         # p(S0=s0)
         # p(S1=s1, S0=s0)
         # p(Sn=sn, ..., S1=s1, S0=s0)
@@ -293,6 +346,27 @@ def get_guesses(url_1):
     # Return the x highest scoring candidates.
     x = 3
     return sorted(guesses, reverse=True, key=lambda g: g[1])[:x]
+
+
+
+
+
+
+def generate_paths(start_url, max_len, current_url=None):
+    # The
+    paths = []
+    # Loop over all pages pages directly reachable from the current 
+    # page.
+    linked_urls = nodes[current_url]['direct_links']
+    for next_url in linked_urls:
+
+
+
+
+
+
+
+
 
 
 def find_paths(current_url, end_url, travel_history=()):

@@ -270,83 +270,57 @@ def get_guesses(url_1):
     destination pages. """
     # Get the metadata of the page at url_1.
     P1 = nodes[url_1]
-    # Count total number of page visits in the data.
+    # Get the average number of page visits per page.
     num_visits_data = [P['num_visits'] for P in nodes.values()]
-    global_visits = sum(num_visits_data)
+    avg_visits = average(num_visits_data)
     # Average time on page, averaged over all pages.
     avg_time_on_page_data = [P['avg_time_on_page'] for P in nodes.values()]
     avg_avg_time_on_page = average(avg_time_on_page_data)
-    # The list of other urls we'll fill, annotated with scores.
-    guesses = []
-    # Loop over all other urls.
-    # (To find the other url that maximises a score.)
-    for url_2, P2 in nodes.items():
-        # Don't predict the page the user is currently on:
-        if url_2 == url_1:
-            # just skip this url_2.
-            continue
-        # Calculate all possible paths without loops from url_1
-        # to url_2 through the graph defined in 'nodes'.
-        paths = find_paths(url_1, url_2)
+
+    # A dictionary indexed by possible destination page.
+    # The values contain data about the probability of this page
+    # being the page the user wants to go, given he is at 'url_1'.
+    destinations = {}
+
+    # Generate all paths up to a certain depth starting from 'url_1'.
+    max_len = 16
+    paths = generate_paths(start_url=url_1, max_len=max_len)
+    # Aggregate them by destination page.
+    for k in range(1, max_len+1):
+        for url_2 in paths[k]:
+            new_paths = paths[k][url_2]
+            if url_2 not in destinations:
+                destinations[url_2] = {
+                    'paths': new_paths
+                }
+            else:
+                destinations[url_2]['paths'].extend(new_paths)
+    
+    for url_2 in destinations:
+        # Get the node metadata of the page at url_2.
+        P2 = nodes[url_2]
         # Calculate the probability of each path.
         # Sum these probabilities, giving a higher weight to longer
         # paths (as these are more useful to the user).
-        # (TODO: why exponential in length L?)
-        # L         1    2    3    4     5    6     7     8     9  
-        # weight
-        # 1.1**L    1.1  1.2  1.3  1.4   1.6  1.7   1.9   2.1   2.3
-        # 2*L       2    4    6    8    10   12    14    16    18  
-        # L**2      1    4    9    16   25   36    49    64    81  
-        # 2**L      2    4    8    16   32   64   128   256   512  
-        p_rel = sum(probability(path) * 1.1**len(path) \
-                    for path in paths)
-
-        # 
-        # TODO: marginale verdeling p(Xn=P2) is eigenlijk verdeling
-        # over nodes op tijdstip n (we kunnen n->inf nemen).
-        # ---Dit hier is p(X0=P2)---   -> Not. We hebben geen initiële 
-        # verdeling (?)
-        p_abs = P2['num_visits'] / global_visits # Py3
-
+        p_travel = sum(probability(path) * 1.1**len(path) \
+                       for path in destinations[url_2]['paths'])
+        # Calculate the relative amount of times P2 was visited 
+        # in the analysed log(s).
+        N_rel = P2['num_visits'] / avg_visits # Py3
+        # Calculate the relative average duration of stay on P2.
+        dt_rel = P2['avg_time_on_page'] / avg_avg_time_on_page # Py3
         # Check if url_1 and url_2 are on the same domain.
         same_domain = (P1['domain'] == P2['domain'])
-        # Convert this into a number (where False->0 and True->1)
-        D = same_domain+0.5
 
-        # Calculate the relative duration of stay on P2.
-        T = P2['avg_time_on_page'] / avg_avg_time_on_page # Py3
+        # [Calculate more features]
 
-        # Combine the above features to calculate (estimate) the 
-        # total probability that the user on P1 wants to go to P2.
-        # "p(P2|P1) ~= p(P2) *  p(P1|P2)"
-        # p(D=P2 | S=P1) * p(S=P1) = p(S=P1 | D=P2) * p(D=P2)
-        p_tot = D * p_rel * T * p_abs
+        # Save features in dictionary for later lookup.
+        destinations[url_2]['N_rel']
 
-        # Ok, to do it correctly:
-        # random variable S = user is currently on page s
-        # random variable D = user want to go to page d
-        # p(S=s)
-        # p(D=d)
-        # p(D=d AND S=s) = p(D=d, S=s) = p(D=d | S=s) * p(S=s)
-        #                              = p(S=s | D=d) * p(D=d)
-        # 
-        # With history:
-        # random variable Si = user visited page si i pages ago.
-        # p(S0=s0)
-        # p(S1=s1, S0=s0)
-        # p(Sn=sn, ..., S1=s1, S0=s0)
-        # p(Sn=sn, ..., S1=s1, S0=s0, D=d)
-        # 
-        # p(S1=s1, S0=s0, D=d) = p(D=d | S1=s1, S0=s0) * p(S1=s1, S0=s0)
-        # p(D=d | S1=s1, S0=s0) = p(S1=s1, S0=s0 | D=d) / c
-        #  -- naive Bayes assumption: --
-        #                       = p(S1=s1 | D=d) * p(S0=s0 | D=d)  / c
+        # [Calculate score(s)]
 
-        # print(url_2)
-        # print('p_tot = D     * p_rel * T     * p_abs')
-        # print('{:.3f} = {:.3f} * {:.3f} * {:.3f} * {:.3f}'.format(
-        #       p_tot,   D,      p_rel,  T,      p_abs))
-        # print()
+
+
 
         guesses.append((url_2, p_tot))
         print(url_2)
@@ -354,10 +328,6 @@ def get_guesses(url_1):
     # Return the x highest scoring candidates.
     x = 3
     return sorted(guesses, reverse=True, key=lambda g: g[1])[:x]
-
-
-
-
 
 
 def generate_paths(start_url, max_len):

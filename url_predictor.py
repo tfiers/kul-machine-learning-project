@@ -162,6 +162,7 @@ def parse(lines):
         # Parse the line as JSON.
         # Add brackets to line so it is valid JSON.
         data = json.loads('[{}]'.format(line))
+        print(line)
         # Make a new dictionary and add it to the events to be 
         # returned.
         events.append({

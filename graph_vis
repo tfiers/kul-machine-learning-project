@@ -1,0 +1,1 @@
+from url_predictor import learn_from

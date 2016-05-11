@@ -40,7 +40,7 @@ def validate(pages):
 		# This returns a list of lists
 		predictions = pred.get_guesses(page)
 		# Store predictions in page_pred_history
-		for i in range(0,len(predictions)):
+		for i in range(0,len(predictions)-1):
 			with predictions[i][0] as web_page:
 				if (predictions[i][0] in page_pred_history) and (predictions[i][1] < page_pred_history[predictions[i][0]]):
 					page_pred_history[web_page] = predictions[i][1]
@@ -53,10 +53,7 @@ def validate(pages):
 def train_model(filename):
 	"""
 	"""
-	with open(filename, 'r') as csv_file:
-		pred.handle_csv(csv_file)
-
-	print("test")
+	pred.learn_from(open(filename))
 
 
 def preprocess(filename):

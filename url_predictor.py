@@ -159,7 +159,7 @@ def parse(lines):
     # The list we'll return.
     events = []
     # Loop over all non-empty lines.
-    for line in filter(lines):
+    for line in filter(len, lines):
         # Parse the line as JSON.
         # Add brackets to line so it is valid JSON.
         data = json.loads('[{}]'.format(line))
@@ -333,8 +333,6 @@ def get_guesses(url_1):
         # Check if url_1 and url_2 are on the same domain.
         same_domain = (P1['domain'] == P2['domain'])
 
-        # [Calculate more features]
-
         # Save features in dictionary for later lookup.
         destinations[url_2]['N_rel']        = N_rel
         destinations[url_2]['N_prop']       = N_prop
@@ -343,12 +341,13 @@ def get_guesses(url_1):
         destinations[url_2]['same_domain']  = same_domain
         destinations[url_2]['p_travel']     = p_travel
 
-        # [Calculate score(s)]
+        p_P1 = sum(P1['time_on_page_data'])/tot_time \
+               * P1['num_visits']/tot_visits
+
+        # --- Calculate score(s) ---
         # p(D=P2 | S=P1)
         destinations[url_2]['Bayes_p'] = \
-            p_travel * same_domain   * N_prop * dt_prop \
-        / (sum(P1['time_on_page_data'])/tot_time 
-            * P1['num_visits'] / tot_visits)
+            p_travel * same_domain   * N_prop * dt_prop    #/ p_P1
         #   p(S=P1 | D=P2)           * p(D=P2)             / p(S=P1)
         # (The denominator is omitted as this is independent of P2).
 
@@ -382,7 +381,9 @@ def get_guesses(url_1):
 
 
 def sigmoid(t):
-    """ Returns the 3.475
+    """ Returns the 
+
+    The function 3.475
     """
     pass
 

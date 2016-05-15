@@ -2,6 +2,7 @@
 import url_predictor as pred
 import json
 from csv import *
+from numpy import average
 
 def train_and_validate(csv_file_training,csv_file_validate):
 	"""
@@ -15,6 +16,8 @@ def train_and_validate(csv_file_training,csv_file_validate):
 	#	predictions that were correct
 	validation = validate(pages)
 
+	return validation
+
 
 def validate(pages):
 	"""
@@ -23,29 +26,35 @@ def validate(pages):
 	Returns a dictionary with the number of primary, secondary and tertiary 
 		predictions that were correct
 	"""
-	# A dictionary for recording the web pages that are predicted
-	page_pred_history = {}
+	print(len(pages))
 	# A dictionary for recording the number of correct predictions
 	validation = { '1' : 0, '2' : 0, '3': 0}
-	for page in pages:
-		# Check if page is a predicted page
-		# Higher the right rank prediction element in validation dictionary
-		for key in page_pred_history:
-			if page == key:
-				rank = page_pred_history['key']
-				if rank in validation:
-					validation[rank] +=1
-				del page_pred_history['key'] 
-		# Get the predictions for this page
-		# This returns a list of lists
-		predictions = pred.get_guesses(page)
-		# Store predictions in page_pred_history
-		for i in range(0,len(predictions)-1):
-			with predictions[i][0] as web_page:
-				if (predictions[i][0] in page_pred_history) and (predictions[i][1] < page_pred_history[predictions[i][0]]):
-					page_pred_history[web_page] = predictions[i][1]
+	distances = []
 
-	return validation
+	for i in range(len(pages)-1):
+		page = pages[i]
+
+		predictions = pred.get_guesses(page)
+
+		j = 0
+		maxJ = len(predictions)
+		found = False
+		while (not found) and (j < maxJ):
+			print("j: " + str(j))
+			web_page = predictions[j]
+			for k in range(i+1,len(pages)-1):
+				if web_page == pages[k]:
+					validation[str(j+1)] += 1
+					distances.append(k-i)
+					print(str(i) + ": " + page + "\n")
+					print("\t" + str(j+1) + ": " + web_page + "\n")
+					print("\t" + str(k) + ": " + pages[k] + "\n")
+					print("\t" + str(k-i) +  " pages in between" + "\n")
+					found = True
+					break
+			j += 1
+
+	return validation, average(distances)
 
 
     
@@ -62,7 +71,9 @@ def preprocess(filename):
 	# Read the csv file as a list of strings.
 	lines = open(filename, 'r').readlines()
 	# Make a list of 'event' dictionaries.
-	pages = parse(lines)
+	events = pred.parse(lines)
+	page_visits = pred.make_page_visits(events)
+	pages = [page_visit['url'] for page_visit in page_visits]
 
 	return pages
 	

@@ -159,11 +159,10 @@ def parse(lines):
     # The list we'll return.
     events = []
     # Loop over all non-empty lines.
-    for line in filter(lines):
+    for line in filter(len, lines):
         # Parse the line as JSON.
         # Add brackets to line so it is valid JSON.
         data = json.loads('[{}]'.format(line))
-        print(line)
         # Make a new dictionary and add it to the events to be 
         # returned.
         events.append({
@@ -347,9 +346,10 @@ def get_guesses(url_1):
         # [Calculate score(s)]
         # p(D=P2 | S=P1)
         destinations[url_2]['Bayes_p'] = \
-            p_travel * same_domain   * N_prop * dt_prop \
+            p_travel * same_domain * N_prop * dt_prop \
         / (sum(P1['time_on_page_data'])/tot_time 
             * P1['num_visits'] / tot_visits)
+        # JORN: same_domain
         #   p(S=P1 | D=P2)           * p(D=P2)             / p(S=P1)
         # (The denominator is omitted as this is independent of P2).
 
@@ -360,7 +360,7 @@ def get_guesses(url_1):
     # Return the x highest scoring candidates.
     # Print info about them.
     x = 3
-
+    """
     print()
     print('   N_rel  dt_rel  N_prop dt_prop  same_d  p_trav')
     #      -------|-------|-------|-------|-------|-------|
@@ -378,7 +378,7 @@ def get_guesses(url_1):
         print('Bayes p: {:.6f}'.format(md['Bayes_p']))
         print()
         print()
-
+    """
     return guesses[:x]
 
 

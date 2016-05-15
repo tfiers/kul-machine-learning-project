@@ -315,7 +315,7 @@ def get_guesses(url_1):
                 # Calculate the probability of each path.
                 # Sum these probabilities, giving a higher weight to longer
                 # paths (as these are more useful to the user).
-                p_travel = sum(probability(path) * 1.1**len(path) \
+                p_travel = sum(probability(path) * 1.2**len(path) \
                                for path in destinations[url_2]['paths'])
                 
                 # Calculate the relative amount of times P2 was visited 
@@ -348,7 +348,7 @@ def get_guesses(url_1):
                 # --- Calculate score(s) ---
                 # p(D=P2 | S=P1)
                 destinations[url_2]['Bayes_p'] = \
-                p_travel * N_prop * dt_prop    #/ p_P1
+                p_travel * same_domain * N_prop * dt_prop    #/ p_P1
                 #   p(S=P1 | D=P2)           * p(D=P2)             / p(S=P1)
                 # (The denominator is omitted as this is independent of P2).
 

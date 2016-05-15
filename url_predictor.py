@@ -351,14 +351,14 @@ def get_guesses(url_1):
         #   p(S=P1 | D=P2)           * p(D=P2)             / p(S=P1)
         # (The denominator is omitted as this is independent of P2).
 
-    guesses = [url_2 for url_2 in destinations]
+    guesses = [url_2 for url_2 in destinations if (destinations[url_2]['Bayes_p'] != 0)]
     guesses = sorted(guesses, reverse=True, 
                      key=lambda url_2: destinations[url_2]['Bayes_p'])
 
     # Return the x highest scoring candidates.
     # Print info about them.
     x = 3
-    """
+    
     print()
     print('   N_rel  dt_rel  N_prop dt_prop  same_d  p_trav')
     #      -------|-------|-------|-------|-------|-------|
@@ -376,7 +376,7 @@ def get_guesses(url_1):
         print('Bayes p: {:.6f}'.format(md['Bayes_p']))
         print()
         print()
-    """
+    
     return guesses[:x]
 
 

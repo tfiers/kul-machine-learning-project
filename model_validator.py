@@ -34,22 +34,22 @@ def validate(pages):
 	for i in range(len(pages)-1):
 		page = pages[i]
 
+		print("PAGE: " + "i:" + str(i) + " " + page)
 		predictions = pred.get_guesses(page)
 
 		j = 0
 		maxJ = len(predictions)
 		found = False
 		while (not found) and (j < maxJ):
-			print("j: " + str(j))
 			web_page = predictions[j]
 			for k in range(i+1,len(pages)-1):
 				if web_page == pages[k]:
 					validation[str(j+1)] += 1
 					distances.append(k-i)
-					print(str(i) + ": " + page + "\n")
-					print("\t" + str(j+1) + ": " + web_page + "\n")
-					print("\t" + str(k) + ": " + pages[k] + "\n")
-					print("\t" + str(k-i) +  " pages in between" + "\n")
+					#print(str(i) + ": " + page + "\n")
+					print("\t WEB PAGE: " + str(j+1) + ": " + web_page + "\n")
+					#print("\t" + str(k) + ": " + pages[k] + "\n")
+					#print("\t" + str(k-i) +  " pages in between" + "\n")
 					found = True
 					break
 			j += 1

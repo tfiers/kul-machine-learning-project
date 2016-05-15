@@ -133,7 +133,7 @@ try {
 	    div.style.color = "black";
       div.style.border = "1px solid black";
       div.style.position = "fixed";
-      div.style.right ="10px";
+      div.style.right = "10px";
       div.style.top = "50px";
       div.style.zIndex = "10000";
 	    
@@ -142,8 +142,8 @@ try {
       for (var i=0; i<best_guesses.length; i++) {
         var aTag = document.createElement("a");
         var br = document.createElement("br");
-        aTag.setAttribute("href",best_guesses[i][0]);
-        aTag.innerHTML = " " + (i+1).toString() + " " + best_guesses[i][1];
+        aTag.setAttribute("href",best_guesses[i]);
+        aTag.innerHTML = " " + (i+1).toString() + " " + best_guesses[i];
         div.appendChild(aTag);
         div.appendChild(br);
       }

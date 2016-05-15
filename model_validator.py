@@ -2,7 +2,7 @@
 import url_predictor as pred
 import json
 from csv import *
-from numpy import average
+from numpy import average,median
 
 def train_and_validate(csv_file_training,csv_file_validate):
 	"""
@@ -62,6 +62,7 @@ def validate(pages):
 def train_model(filename):
 	"""
 	"""
+	pred.nodes.clear()
 	pred.learn_from(open(filename))
 
 

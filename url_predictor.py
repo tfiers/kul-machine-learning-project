@@ -53,9 +53,8 @@ def learn_from(csv_file_handle):
     pages for each starting url -- on a csv file.
     (The csv file should be supplied as a file handle.
     The model is stored in the global variable 'nodes').
+    Repeated calls will expand the existing model.
     """
-    # PREPROCESSING
-    # 
     # Read the csv file as a list of strings.
     lines = csv_file_handle.readlines()
     # Make a list of 'event' dictionaries.
@@ -66,14 +65,8 @@ def learn_from(csv_file_handle):
     # temporal information and higher-order sequential information.
     # (We modify the global object 'nodes' here).
     make_graph(page_visits)
-
     # For debugging in shell.
     return nodes
-
-
-    # TRAINING MODEL
-    # 
-    # ... Done on the fly for each starting url.
 
 
 def parse(lines):
@@ -178,13 +171,14 @@ def make_graph(page_visits):
     return nodes
 
 
-
-
 # --------------------------------------------------------------------
 
 def get_guesses(url_1, beta=1.1):
     """ Given a starting url 'url_1', returns a list of most likely
-    destination pages. """
+    destination pages.
+
+    A higher 'beta' (> 1) gives a higher weight to destination pages
+    further away."""
 
     # Predict nothing if we haven't seen the given url before.
     if url_1 not in nodes:
@@ -340,9 +334,9 @@ def squash(t):
     For positive values t, the output will be between 0 and 1.
 
     Used to squash duration values: a duration of a page visit of 4 
-    seconds should be given a higher weight than a duration of 2 
-    seconds, BUT a duration of 40 seconds should yield only a slightly
-    higher weight than a duration of 10 seconds.
+    seconds should be given a clearly higher weight than a duration of 
+    2 seconds, BUT a duration of 40 seconds should yield only a 
+    slightly higher weight than a duration of 10 seconds.
 
     The function is calibrated so an input value of 3.475 yields 0.5.
     (3.475 is the median page visit time in one of the biggest data

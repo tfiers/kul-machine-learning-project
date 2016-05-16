@@ -24,7 +24,11 @@ def visualise(csv_file):
 
 	color_map = get_color_map(domain_list)
 
-	nx.draw(G, node_color=[color_map[G.node[node]['domain']] for node in G])
+	print(str(color_map))
+
+	nx.draw(G, node_color=[color_map[G.node[node]['domain']] for node in G]) #label = [G.node[node]['domain'] for node in G] ) 
+
+	#plt.legend()
 
 	plt.show()
 

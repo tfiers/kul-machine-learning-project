@@ -1,6 +1,7 @@
 
 import url_predictor as pred
 import json
+import os
 from csv import *
 from numpy import average,median
 
@@ -18,7 +19,6 @@ def train_and_validate(csv_file_training,csv_file_validate):
 
 	return validation
 
-
 def validate(pages):
 	"""
 	Expects a list of web pages representing a web session
@@ -28,7 +28,7 @@ def validate(pages):
 	"""
 	print(len(pages))
 	# A dictionary for recording the number of correct predictions
-	validation = { '1' : 0, '2' : 0, '3': 0}
+	validation = 0
 	distances = []
 
 	for i in range(len(pages)-1):
@@ -44,12 +44,9 @@ def validate(pages):
 			web_page = predictions[j]
 			for k in range(i+1,len(pages)-1):
 				if web_page == pages[k]:
-					validation[str(j+1)] += 1
+					validation += 1
 					distances.append(k-i)
-					#print(str(i) + ": " + page + "\n")
 					print("\t WEB PAGE: " + str(j+1) + ": " + web_page + "\n")
-					#print("\t" + str(k) + ": " + pages[k] + "\n")
-					#print("\t" + str(k-i) +  " pages in between" + "\n")
 					found = True
 					break
 			j += 1
@@ -57,12 +54,42 @@ def validate(pages):
 	return validation, average(distances)
 
 
+def validate_directory(directory="data"):
+	"""
+	"""
+	users = {}
+	for file in os.listdir("./"+directory):
+		if file.endswith(".csv"):
+			s = file.split('_')
+			if s[0] not in users:
+				files[s[0]] = [file]
+			else:
+				users[0]].append(file)
+
+	for user in users:
+		validate_user(users[user])
+
+
+	return users
+
+def validate_user(user_files):
+	"""
+	"""
+	pred.clear_model()
+	total_pages = 0
+	for file in user_files:
+		pages = preprocess(file)
+		total_pages += len(pages)
+	test
+
+
+
     
 
 def train_model(filename):
 	"""
 	"""
-	pred.nodes.clear()
+	pred.clear_model()
 	pred.learn_from(open(filename))
 
 

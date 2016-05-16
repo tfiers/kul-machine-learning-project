@@ -122,11 +122,10 @@ try {
   }, function(response) {
     try {
       data = JSON.parse(response.response);
-      // TODO: Do something (e.g. show a top bar with the final link of the
-      //       suspected sequence)
       console.log("create div");
       var div = document.createElement("div");
       
+      div.style.fontFamily = "sans"
       div.style.width = "300px";
 	    div.style.height = "100px";
 	    div.style.background = "#DCDCDC";

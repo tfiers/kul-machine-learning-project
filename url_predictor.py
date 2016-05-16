@@ -4,6 +4,7 @@
 
 import json
 from dateutil.parser import parse as parse_datetime
+from datetime import datetime
 from urllib.parse import urlsplit
 from publicsuffix import PublicSuffixList
 from collections import defaultdict
@@ -47,7 +48,7 @@ def learn_from(csv_file_handle, fraction=1):
 
     Repeated calls will expand the existing model.
 
-    The model is only trained on the first 'fraction' page visits
+    The model is only trained on the first 'fraction' of page visits
     in the data.
     """
     # Read the csv file as a list of strings.
@@ -61,7 +62,7 @@ def learn_from(csv_file_handle, fraction=1):
     # Make a graph (as a dictionary of nodes), discarding absolute
     # temporal information and higher-order sequential information.
     # (We modify the global object 'nodes' here).
-    add_to_graph(page_visits[:n])
+    add_page_visits_to_graph(page_visits[:n])
     # For debugging in shell.
     return nodes
 
@@ -104,8 +105,7 @@ def make_page_visits(events):
             next_event = events[i+1]
             # Determine the amount of time the user stayed on this 
             # page.
-            timedelta = next_event['t'] - curent_event['t']
-            duration = timedelta.total_seconds()
+            duration = seconds_diff(next_event['t'], curent_event['t'])
             # Create a new page visit object.
             page_visits.append({
                 'url': curent_event['url'],
@@ -115,7 +115,7 @@ def make_page_visits(events):
     return page_visits
 
 
-def add_to_graph(page_visits):
+def add_page_visits_to_graph(page_visits):
     """ Constructs a directed graph from the page visits list.
     An existing graph will be extended.
     """
@@ -124,61 +124,90 @@ def add_to_graph(page_visits):
     # url, and various metadata (most of which is added later).
     # (This is called an 'adjacency list' representation.)
     for i in range(len(page_visits)):
-        # Get the url of the currently visited page.
+        # Get the url of the currently visited page, and
+        # the duration of the page visit.
         url = page_visits[i]['url']
         time_on_page  = page_visits[i]['duration']
-        # If the visited page is not yet a node in the graph..
-        if url not in nodes:
-            # .. add a new node, with currently one visit.
-            nodes[url] = {
-                'num_visits': 1,
-                'time_on_page_data': [time_on_page],
-                'domain': get_domain(url),
-                'direct_links': {},
-            }
-        else:
-            # If it is is already a node in the graph,  increase the 
-            # number of times it was visited.
-            nodes[url]['num_visits'] += 1
-            # And add how long the user stayed on this page during 
-            # this page visit.
-            nodes[url]['time_on_page_data'].append(time_on_page)
+        # Update the graph with this data
+        add_visit_to_node(url, time_on_page)
         # Get a reference to the urls linked from the current node.
         linked_urls = nodes[url]['direct_links']
         # If this is not the last page visit of the browsing session..
         if i < len(page_visits)-1: 
             # .. get the url of the page visited next.
             next_url = page_visits[i+1]['url']
-            # If there is already a link from the current page to the 
-            # other url..
-            if next_url in linked_urls:
-                # .. increase the number of times the page at 
-                # 'next_url' followed the current page.
-                linked_urls[next_url] += 1
-            else:
-                # If not, add a new link. (Currently followed once).
-                linked_urls[next_url] = 1
-    # Return the graph.
-    return nodes
+            # Add or update a link from the current url to the next.
+            add_link_between_nodes(url, next_url)
 
-def add_page_visit_to_graph():
-    pass
+
+def add_visit_to_node(url, duration=None):
+    """ Update the node of the given url, or make a new one.
+    """
+    # If the visited page is not yet a node in the graph..
+    if url not in nodes:
+        # .. add a new node.
+        nodes[url] = {
+            'num_visits': 0,
+            'time_on_page_data': [],
+            'domain': get_domain(url),
+            'direct_links': {},
+        }
+    # Increase the number of times it was visited.
+    nodes[url]['num_visits'] += 1
+    # If a page visit duration is provided, add this data to the node.
+    if duration is not None:
+        nodes[url]['time_on_page_data'].append(duration)
+
+
+def add_link_between_nodes(url_1, url_2):
+    """ Updates the link from url_1 to url_2 in the graph, or make
+    a new one.
+    """
+    # Get a reference to the urls linked from url_1.
+    linked_urls = nodes[url_1]['direct_links']
+    # If there is already a link from the first url to the 
+    # other url.self.
+    if url_2 in linked_urls:
+        # .. increase the number of times the page at 
+        # 'url_2' followed the current page.
+        linked_urls[url_2] += 1
+    else:
+        # If not, add a new link. (Currently followed once).
+        linked_urls[url_2] = 1
 
 
 previous_url = ''
 previous_t = None
-def add_one_url_to_model(url):
-    """ 
+def learn_from_current_visit(url):
+    """ For incremental learning. Update the model with the knowledge
+    that the given url is currently being visited.
     """
-    t = datetime.datetime.now()
-    page_visit = {
-        'url': curent_event['url'],
-        't': curent_event['t'], # = time of page entry
-        'duration' : duration,
-    }
+    # We want some persistency between calls.
+    global previous_url, previous_t
+    # Get the current timestamp.
+    t = datetime.now()
+    # Update the graph. We don't know the duration of the page visit yet.
+    add_visit_to_node(url, duration=None)
+    # If we already visited a page:
+    if previous_url:
+        # We now know the duration of the previously visited page.
+        duration = seconds_diff(t, previous_t)
+        # Add this data to its corresponding node.
+        nodes[previous_url]['time_on_page_data'].append(duration)
+        # We also now have a new link from the previous url to the
+        # current one.
+        add_link_between_nodes(previous_url, url)
+    # Update data for the next run.
     previous_url = url
     previous_t = t
 
+
+def seconds_diff(t1, t0):
+    """ Returns the total amount of seconds between the given
+    timestamps.
+    """
+    timedelta = t1 - t0
+    return timedelta.total_seconds()
 
 
 psl = PublicSuffixList()
@@ -195,7 +224,7 @@ def get_domain(url):
 
 # --------------------------------------------------------------------
 
-def get_guesses(url_1, beta=1.1, max_len=12):
+def get_guesses(url_1, beta=2, max_len=12):
     """ Given a starting url 'url_1', returns a list of most likely
     destination pages.
 
@@ -207,7 +236,7 @@ def get_guesses(url_1, beta=1.1, max_len=12):
     """
 
     # Incremental learning.
-    add_one_url_to_model(url_1)
+    learn_from_current_visit(url_1)
 
     # Predict nothing if we haven't seen the given url before.
     if url_1 not in nodes:
@@ -268,9 +297,11 @@ def get_guesses(url_1, beta=1.1, max_len=12):
         probabilities = [0]*max_len
         for path in destinations[url_2]['paths']:
             # A path from A to B, represented as ('A', 'B'), has 
-            # length 1, hence the "- 1".
+            # length 1, hence the "- 1". We use a 0-indexed list 
+            # to store the probabilities for convenience, hence
+            # another "-1".
             k = len(path) - 1
-            probabilities[k] += probability(path)
+            probabilities[k-1] += probability(path)
         # Average these probabilities over all considered path lengths.
         p_travel = average(probabilities)
 
@@ -292,6 +323,11 @@ def get_guesses(url_1, beta=1.1, max_len=12):
         # Check if url_1 and url_2 are on the same domain.
         same_domain = (P1['domain'] == P2['domain'])
 
+        # Calculate the length of the shortest path between P1 and P2.
+        minlen = min(len(path)-1 \
+                     for path in destinations[url_2]['paths'])
+        
+
         # Save features in dictionary for later lookup.
         destinations[url_2]['N_rel']        = N_rel
         destinations[url_2]['N_prop']       = N_prop
@@ -299,6 +335,7 @@ def get_guesses(url_1, beta=1.1, max_len=12):
         destinations[url_2]['dt_prop']      = dt_prop
         destinations[url_2]['same_domain']  = same_domain
         destinations[url_2]['p_travel']     = p_travel
+        destinations[url_2]['minlen']       = minlen
 
         p_P1 =   sum(P1['time_on_page_data']) / tot_time \
                * P1['num_visits'] / tot_visits
@@ -312,22 +349,21 @@ def get_guesses(url_1, beta=1.1, max_len=12):
         #   p(S=P1 | D=P2)           * p(D=P2)             / p(S=P1)
         # (The denominator is omitted as this is independent of P2).
 
+        # Length weighted Bayes probability score.
         # Modify the Bayes probability score by giving a higher 
         # weight to pages further away (as predicting these is more
         # useful to the user.)
-        len_shortest_path = min(len(path)-1 \
-                            for path in destinations[url_2]['paths'])
-        destinations[url_2]['len_weighted_Bayes_score'] = \
-            destinations[url_2]['Bayes_p'] * beta**len_shortest_path
+        destinations[url_2]['len_weighted'] = \
+            destinations[url_2]['Bayes_p'] * beta**minlen
 
     # Make a list of candidate guesses.
     candidates = [url_2 for url_2 in destinations \
                 if destinations[url_2]['Bayes_p'] > 0]
     candidates = sorted(candidates, reverse=True, key=lambda url_2: \
-                        destinations[url_2]['len_weighted_Bayes_score'])
+                        destinations[url_2]['len_weighted'])
 
     # Take the x highest scoring candidates.
-    x = min(3, len(guesses))
+    x = min(10, len(candidates))
     guesses = candidates[:x]
     # Print info about them.
     print_info(guesses, destinations)
@@ -340,20 +376,22 @@ def print_info(guesses, destinations):
     what are the factors contributing to their scores?
     """
     print()
-    print('   N_rel  dt_rel  N_prop dt_prop  same_d  p_trav')
-    #      -------|-------|-------|-------|-------|-------|
-    print()
     for url_2 in guesses:
         md = destinations[url_2] # destination metadata
         print(url_2)
         print()
-        print(''.join(['{:>8.3f}']*6).format(md['N_rel'],
+        print('   N_rel  dt_rel  N_prop dt_prop  same_d  p_trav  minlen')
+        #      -------|-------|-------|-------|-------|-------|-------|
+        print(''.join(['{:>8.3f}']*7).format(md['N_rel'],
                                              md['dt_rel'],
                                              md['N_prop'],
                                              md['dt_prop'],
                                              md['same_domain'],
-                                             md['p_travel']))
-        print('Bayes p: {:.6f}'.format(md['Bayes_p']))
+                                             md['p_travel'],
+                                             md['minlen']))
+        print()
+        print('Bayes p:      {:.6f}'.format(md['Bayes_p']))
+        print('Len weighted: {:.6f}'.format(md['len_weighted']))
         print()
         print()
 
@@ -444,15 +482,9 @@ def time_f(f, arg):
 
 def test():
     learn_from(open('u23_1.csv'))
-    t0 = time()
     # for url in nodes:
     #     get_guesses(url)
     get_guesses('http://www.standaard.be/')
-    print(time()-t0)
-
-    # Timing "get_guesses('http://www.standaard.be/')":
-    # 14.93 seconds without memoization
-    #  0.05 seconds with memoization (298x faster)
 
     # lines = open('u23_1.csv').readlines()
     # events = url_predictor.parse(lines)

@@ -36,7 +36,10 @@ nodes = {}
 def clear_model():
     """ Clears the graph.
     """
+    global previous_url
     nodes.clear()
+    previous_url = ''
+
 
 
 def learn_from(csv_file_handle, fraction=1):
@@ -141,6 +144,32 @@ def add_page_visits_to_graph(page_visits):
             add_link_between_nodes(url, next_url)
 
 
+previous_url = ''
+previous_t = None
+def learn_from_current_visit(url):
+    """ For incremental learning. Update the model with the knowledge
+    that the given url is currently being visited.
+    """
+    # We want some persistency between calls.
+    global previous_url, previous_t
+    # Get the current timestamp.
+    t = datetime.now()
+    # Update the graph. We don't know the duration of the page visit yet.
+    add_visit_to_node(url, duration=None)
+    # If we already visited a page:
+    if previous_url:
+        # We now know the duration of the previously visited page.
+        duration = seconds_diff(t, previous_t)
+        # Add this data to its corresponding node.
+        nodes[previous_url]['time_on_page_data'].append(duration)
+        # We also now have a new link from the previous url to the
+        # current one.
+        add_link_between_nodes(previous_url, url)
+    # Update data for the next run.
+    previous_url = url
+    previous_t = t
+
+
 def add_visit_to_node(url, duration=None):
     """ Update the node of the given url, or make a new one.
     """
@@ -175,32 +204,6 @@ def add_link_between_nodes(url_1, url_2):
     else:
         # If not, add a new link. (Currently followed once).
         linked_urls[url_2] = 1
-
-
-previous_url = ''
-previous_t = None
-def learn_from_current_visit(url):
-    """ For incremental learning. Update the model with the knowledge
-    that the given url is currently being visited.
-    """
-    # We want some persistency between calls.
-    global previous_url, previous_t
-    # Get the current timestamp.
-    t = datetime.now()
-    # Update the graph. We don't know the duration of the page visit yet.
-    add_visit_to_node(url, duration=None)
-    # If we already visited a page:
-    if previous_url:
-        # We now know the duration of the previously visited page.
-        duration = seconds_diff(t, previous_t)
-        # Add this data to its corresponding node.
-        nodes[previous_url]['time_on_page_data'].append(duration)
-        # We also now have a new link from the previous url to the
-        # current one.
-        add_link_between_nodes(previous_url, url)
-    # Update data for the next run.
-    previous_url = url
-    previous_t = t
 
 
 def seconds_diff(t1, t0):

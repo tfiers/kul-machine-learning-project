@@ -7,6 +7,7 @@ from dateutil.parser import parse as parse_datetime
 from collections import defaultdict
 from time import time
 from numpy import average, median
+from math import tanh
 
 from urllib.parse import urlsplit
 from publicsuffix import PublicSuffixList
@@ -39,6 +40,12 @@ nodes = {}
 #       },
 #   }
 # }
+
+
+def clear_model():
+    """ Clears the graph.
+    """
+    nodes = {}
 
 
 def learn_from(csv_file_handle):
@@ -179,6 +186,7 @@ def get_guesses(url_1, beta=1.1):
     """ Given a starting url 'url_1', returns a list of most likely
     destination pages. """
 
+    # Predict nothing if we haven't seen the given url before.
     if url_1 not in nodes:
         return []
 
@@ -249,12 +257,14 @@ def get_guesses(url_1, beta=1.1):
         # Calculate the proportion of times P2 was visited
         N_prop = P2['num_visits'] / tot_visits
 
+        # We work with 'squashed' times below. See the doctext of 
+        # 'squash'.
         # Calculate the relative average duration of stay on P2.
         avg_time_on_page = average(P2['time_on_page_data'])
-        dt_rel = avg_time_on_page / global_avg_time_on_page
+        dt_rel = squash(avg_time_on_page) / squash(global_avg_time_on_page)
         # Calculate the proportion of time the user was on P2.
         tot_time_on_page = sum(P2['time_on_page_data'])
-        dt_prop = tot_time_on_page / tot_time
+        dt_prop = squash(tot_time_on_page) / squash(tot_time)
 
         # Check if url_1 and url_2 are on the same domain.
         same_domain = (P1['domain'] == P2['domain'])
@@ -271,7 +281,9 @@ def get_guesses(url_1, beta=1.1):
                * P1['num_visits'] / tot_visits
 
         # --- Calculate score(s) ---
-        # p(D=P2 | S=P1)
+        # 
+        # Bayes probability score.
+        # This is p(D=P2 | S=P1)
         destinations[url_2]['Bayes_p'] = \
             p_travel                 * N_prop * dt_prop   #/ p_P1
         #   p(S=P1 | D=P2)           * p(D=P2)             / p(S=P1)
@@ -285,20 +297,30 @@ def get_guesses(url_1, beta=1.1):
         destinations[url_2]['len_weighted_Bayes_score'] = \
             destinations[url_2]['Bayes_p'] * beta**len_shortest_path
 
-    guesses = [url_2 for url_2 in destinations \
+    # Make a list of candidate guesses.
+    candidates = [url_2 for url_2 in destinations \
                 if destinations[url_2]['Bayes_p'] > 0]
-    guesses = sorted(guesses, reverse=True, key=lambda url_2: \
-                     destinations[url_2]['len_weighted_Bayes_score'])
+    candidates = sorted(candidates, reverse=True, key=lambda url_2: \
+                        destinations[url_2]['len_weighted_Bayes_score'])
 
-    # Return the x highest scoring candidates.
+    # Take the x highest scoring candidates.
+    x = min(3, len(guesses))
+    guesses = candidates[:x]
     # Print info about them.
-    x = 3
-    
+    print_info(guesses, destinations)
+    # Return them.
+    return guesses
+
+
+def print_info(guesses, destinations):
+    """ Shows information about the given guesses in the console:
+    what are the factors contributing to their scores?
+    """
     print()
     print('   N_rel  dt_rel  N_prop dt_prop  same_d  p_trav')
     #      -------|-------|-------|-------|-------|-------|
     print()
-    for url_2 in guesses[:x]:
+    for url_2 in guesses:
         md = destinations[url_2] # destination metadata
         print(url_2)
         print()
@@ -311,16 +333,23 @@ def get_guesses(url_1, beta=1.1):
         print('Bayes p: {:.6f}'.format(md['Bayes_p']))
         print()
         print()
-    
-    return guesses[:x]
 
 
-def sigmoid(t):
-    """ Returns the 
+def squash(t):
+    """ Applies a sigmoid function to the input value.
+    For positive values t, the output will be between 0 and 1.
 
-    The function 3.475
+    Used to squash duration values: a duration of a page visit of 4 
+    seconds should be given a higher weight than a duration of 2 
+    seconds, BUT a duration of 40 seconds should yield only a slightly
+    higher weight than a duration of 10 seconds.
+
+    The function is calibrated so an input value of 3.475 yields 0.5.
+    (3.475 is the median page visit time in one of the biggest data
+    sets.)
     """
-    pass
+    # 0.5499 ~= inv_tanh(0.5)
+    return tanh(t / 0.5499)
 
 
 def generate_paths(start_url, max_len):
@@ -409,8 +438,5 @@ def test():
     #    print(url_predictor.shorten_url(pv['url'], 80))
 
 if __name__ == '__main__':
+    learn_from(open('u23_1.csv'))
     test()
-
-
-# Execute on import:
-learn_from(open('u23_1.csv'))

@@ -36,7 +36,7 @@ nodes = {}
 def clear_model():
     """ Clears the graph.
     """
-    nodes = {}
+    nodes.clear()
 
 
 def learn_from(csv_file_handle, fraction=1):
@@ -101,7 +101,8 @@ def make_page_visits(events):
     start_events = ['load', 'polling']
     for i in range(len(events)):
         curent_event = events[i]
-        if curent_event['event_type'] in start_events:
+        if curent_event['event_type'] in start_events \
+           and i < len(events)-1:
             next_event = events[i+1]
             # Determine the amount of time the user stayed on this 
             # page.
@@ -224,7 +225,7 @@ def get_domain(url):
 
 # --------------------------------------------------------------------
 
-def get_guesses(url_1, beta=2, max_len=12):
+def get_guesses(url_1, beta=1.5, max_len=12):
     """ Given a starting url 'url_1', returns a list of most likely
     destination pages.
 
@@ -257,9 +258,11 @@ def get_guesses(url_1, beta=2, max_len=12):
     # Calculate average time on page, averaged over all pages.
     # and total time spent on each page, summed over all pages.
     # (We flatten a list of lists on the next line.)
+    # We continue with squashed times. See the docstring for 'squash'.
     time_on_page_data = [dt for P in Ps for dt in P['time_on_page_data']]
-    global_avg_time_on_page = average(time_on_page_data)
-    tot_time = sum(time_on_page_data)
+    squashed_durations = list(map(squash, time_on_page_data))
+    global_avg_time_on_page = average(squashed_durations)
+    tot_time = sum(squashed_durations)
 
     # A dictionary indexed by possible destination page.
     # The values contain data about the probability of this page
@@ -311,14 +314,13 @@ def get_guesses(url_1, beta=2, max_len=12):
         # Calculate the proportion of times P2 was visited
         N_prop = P2['num_visits'] / tot_visits
 
-        # We work with 'squashed' times below. See the doctext of 
-        # 'squash'.
         # Calculate the relative average duration of stay on P2.
-        avg_time_on_page = average(P2['time_on_page_data'])
-        dt_rel = squash(avg_time_on_page) / squash(global_avg_time_on_page)
+        squashed_durations = list(map(squash, P2['time_on_page_data']))
+        avg_time_on_page = average(squashed_durations)
+        dt_rel = avg_time_on_page / global_avg_time_on_page
         # Calculate the proportion of time the user was on P2.
-        tot_time_on_page = sum(P2['time_on_page_data'])
-        dt_prop = squash(tot_time_on_page) / squash(tot_time)
+        tot_time_on_page = sum(squashed_durations)
+        dt_prop = tot_time_on_page / tot_time
 
         # Check if url_1 and url_2 are on the same domain.
         same_domain = (P1['domain'] == P2['domain'])
@@ -390,9 +392,13 @@ def print_info(guesses, destinations):
                                              md['p_travel'],
                                              md['minlen']))
         print()
-        print('Bayes p:      {:.6f}'.format(md['Bayes_p']))
-        print('Len weighted: {:.6f}'.format(md['len_weighted']))
+        print('Bayes p:      {:.3E}'.format(md['Bayes_p']))
+        print('Len-weighted: {:.3E}'.format(md['len_weighted']))
         print()
+        # print('Avg duration: {:.2f}'.format(average(
+        #                         nodes[url_2]['time_on_page_data'])))
+        # print('Squashed:     {:.2f}'.format(squash(average(
+        #                         nodes[url_2]['time_on_page_data']))))
         print()
 
 
@@ -410,7 +416,7 @@ def squash(t):
     sets.)
     """
     # 0.5499 ~= inv_tanh(0.5)
-    return tanh(t / 0.5499)
+    return tanh(t / 3.475 * 0.5499)
 
 
 def generate_paths(start_url, max_len):

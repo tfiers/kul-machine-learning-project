@@ -14,7 +14,7 @@ psl = PublicSuffixList()
 def get_domain(url):
     """ Extracts the domain name part of the given URL.
     """
-    # 'netloc' = subdomain(s) plus domain name.
+    # 'netloc' is the subdomain(s) plus the domain name.
     netloc = urlsplit(url).netloc
     # Extract only the domain name itself ('public suffix').
     # See http://stackoverflow.com/a/15460894/2611913
@@ -39,89 +39,6 @@ nodes = {}
 #       },
 #   }
 # }
-
-
-# Three possiblities:
-#       'paths': {
-#           #          p    k    p    k
-#           'url_B': [(0.2, 3), (0.1, 6)]
-#       }
-# 
-# OR:
-# 
-#       'paths': {
-#        #  k              p     p          
-#           1: { 'url_B': [0.15, 0.3]}
-#           2: {}
-#       }
-# 
-# OR:
-# 
-#       'paths': {
-#            'url_B': [('url', 'url'), ('url', 'url')]
-#        }
-
-
-# Two possibilities for filling the 'paths' value of each node:
-# 1) Node per node
-# 2) k per k
-# 
-# 1) > generate_paths(travel_history, max_steps)
-#       Each function adds entries for it's step = k = len(travel_history)
-#       to the first url of the travel history.
-#       Initial call: generate_paths((url_1,), k)  (k=10 eg)
-# 
-#       Optimisation: we can exploit fact that: after a node (P1) is done,
-#       it's stored paths are complete. We can use these when calculating
-#       paths from another node (P2): Eg. Direct link from P2 to P1
-#       -> we can get all paths of length up to k starting with P2->P1 
-#       by prepending P2 to all paths of length up to k-1 starting from P1.
-#       FOR THIS OPTIMISATION WE NEED THE SECOND DATA STRUCTURE.
-#       (The others would be kindof a pain to use).
-#       --> Less and less traversals (jumps through memory) when completing
-#       the 'paths' value for more nodes.
-#       (Maybe: not much point in calculating and storing these paths
-#       beforehand. Maybe do it on the fly.
-#       Allright: first do it on the fly, then see: if fast enough: 
-#       leave it, it's good. If not fast enough, do precalc, and try 
-#       optimisation. This one, or '2)' below).
-# 
-# 2) > k = 1  -> for each node: copy the 'direct_links' to k=1 entry
-#    > k = 2  -> for each node:  for each k=1 entry: append with results 
-#                of lookup at that entry's k=1. Add all results to k=2 entry here.
-#    > k = 3  -> for each node:  for each k=2 entry: append with results 
-#                of lookup at that entry's k=1. Add all results to k=3 entry here.
-#    > etc.
-#    
-#    Optimisation.
-#    Question: can we exploit the fact that, when we've 
-#    calculated all paths up to length k = 4 for each node (eg.),
-#    we could, for each node, quickly calculate all paths of length
-#    5 (4+1), 6 (4+2), 7 (4+3) and 8 (4+4).
-#    Maybe, let's see.
-#    > k = 1
-#    > k = 2 (1+1)
-#    > k = 3 (2+1) and k = 4 (2+2)
-#    > k = 5, k = 6, k = 7, k = 8
-#    > k = 9, k = 10, k = 11, k = 12, k = 13, k = 14, k = 15, k = 16
-#    > etc.
-# 
-# 
-# For lookups (calculating score(url1->url2)), we'd do:
-# - For data structure 1 (and 3) above: simple lookup at url_2
-# - For data structure 2 above: loop over all k's, lookup url_2 each time.
-# Ok, so lookup ease is no big argument to prefer 1.
-# --> We go for data structure 2.
-# 
-# I guess: not optimised (not precomputed) method 1) will be fast enough
-# for on the fly calculation: o^k lookups.
-# where o is mean branching factor per page. Take 0=2, k=10: 1024 lookups.
-# (For k=16 -> 65 500 lookups.  k=20 -> 1M lookups)
-# Algo needn't be recursive by the way. That's nice ( :) )
-# 
-# 
-# Conclusion: use non-precomputet method 1), non recursively.
-# No need to store paths.
 
 
 def learn_from(csv_file_handle):
@@ -149,7 +66,7 @@ def learn_from(csv_file_handle):
 
     # TRAINING MODEL
     # 
-    # ... Done on the fly for each starting url, for now.
+    # ... Done on the fly for each starting url.
 
 
 def parse(lines):
@@ -214,6 +131,7 @@ def make_graph(page_visits):
     # The graph is a dictionary of nodes. The keys are page urls,
     # the values contain urls of pages following the page of the key 
     # url, and various metadata (most of which is added later).
+    # (This is called an 'adjacency list' representation.)
     for i in range(len(page_visits)):
         # Get the url of the currently visited page.
         url = page_visits[i]['url']
@@ -257,10 +175,10 @@ def make_graph(page_visits):
 
 # --------------------------------------------------------------------
 
-
-def get_guesses(url_1):
+def get_guesses(url_1, beta=1.1):
     """ Given a starting url 'url_1', returns a list of most likely
     destination pages. """
+
     if url_1 not in nodes:
         return []
 
@@ -314,18 +232,22 @@ def get_guesses(url_1):
 
         # --- Calculate features ---
         # 
-        # Calculate the probability of each path.
-        # Sum these probabilities, giving a higher weight to longer
-        # paths (as these are more useful to the user).
-        p_travel = sum(probability(path) * 1.1**len(path) \
-                       for path in destinations[url_2]['paths'])
-        # ^TODO: omit alpha, divide by max_len
-        
+        # For each path length k, calculate the probability that 
+        # a random traveller gets from url_1 to url_2 in k steps.
+        probabilities = [0]*max_len
+        for path in destinations[url_2]['paths']:
+            # A path from A to B, represented as ('A', 'B'), has 
+            # length 1, hence the "- 1".
+            k = len(path) - 1
+            probabilities[k] += probability(path)
+        # Average these probabilities over all considered path lengths.
+        p_travel = average(probabilities)
+
         # Calculate the relative amount of times P2 was visited 
         # in the analysed log(s).
         N_rel = P2['num_visits'] / avg_visits
         # Calculate the proportion of times P2 was visited
-        N_prop = P2['num_visits'] / tot_visits 
+        N_prop = P2['num_visits'] / tot_visits
 
         # Calculate the relative average duration of stay on P2.
         avg_time_on_page = average(P2['time_on_page_data'])
@@ -345,19 +267,28 @@ def get_guesses(url_1):
         destinations[url_2]['same_domain']  = same_domain
         destinations[url_2]['p_travel']     = p_travel
 
-        p_P1 = sum(P1['time_on_page_data'])/tot_time \
-               * P1['num_visits']/tot_visits
+        p_P1 =   sum(P1['time_on_page_data']) / tot_time \
+               * P1['num_visits'] / tot_visits
 
         # --- Calculate score(s) ---
         # p(D=P2 | S=P1)
         destinations[url_2]['Bayes_p'] = \
-        p_travel * N_prop * dt_prop    #/ p_P1
+            p_travel                 * N_prop * dt_prop   #/ p_P1
         #   p(S=P1 | D=P2)           * p(D=P2)             / p(S=P1)
         # (The denominator is omitted as this is independent of P2).
 
-    guesses = [url_2 for url_2 in destinations if (destinations[url_2]['Bayes_p'] != 0)]
-    guesses = sorted(guesses, reverse=True, 
-                     key=lambda url_2: destinations[url_2]['Bayes_p'])
+        # Modify the Bayes probability score by giving a higher 
+        # weight to pages further away (as predicting these is more
+        # useful to the user.)
+        len_shortest_path = min(len(path)-1 \
+                            for path in destinations[url_2]['paths'])
+        destinations[url_2]['len_weighted_Bayes_score'] = \
+            destinations[url_2]['Bayes_p'] * beta**len_shortest_path
+
+    guesses = [url_2 for url_2 in destinations \
+                if destinations[url_2]['Bayes_p'] > 0]
+    guesses = sorted(guesses, reverse=True, key=lambda url_2: \
+                     destinations[url_2]['len_weighted_Bayes_score'])
 
     # Return the x highest scoring candidates.
     # Print info about them.

@@ -228,7 +228,7 @@ def get_domain(url):
 
 # --------------------------------------------------------------------
 
-def get_guesses(url_1, beta=1.1, max_len=12):
+def get_guesses(url_1, beta=1.1, max_len=8):
     """ Given a starting url 'url_1', returns a list of most likely
     destination pages.
 

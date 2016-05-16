@@ -13,7 +13,7 @@ Run `python urlStreamHandler.py`.
 Now after a while, the app will start suggesting pages you might want to go to when you are on a page that you have already visited.  
 
 If you want to pre-train the app with historical web usage data, call for example:  
-`python urlStreamHandler.py log1.csv log2.csv log3.csv`.
+`python urlStreamHandler.py --csv log1.csv log2.csv`.
 
 
 ## File descriptions

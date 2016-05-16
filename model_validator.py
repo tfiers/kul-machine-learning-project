@@ -163,9 +163,3 @@ def parse(lines):
 		pages.append(data[2])
 
 	return pages
-
-	
- 
-
-
-

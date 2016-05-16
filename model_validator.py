@@ -76,11 +76,25 @@ def validate_user(user_files):
 	"""
 	"""
 	pred.clear_model()
-	total_pages = 0
+
+
+	page_counter = 0
 	for file in user_files:
-		pages = preprocess(file)
-		total_pages += len(pages)
-	test
+		openfile = open(file)
+		page_counter += len(openfile)
+
+	# The test data set is the last 30% of the total data set
+	test_data_start = 0.7 * page_counter
+
+	page_counter = 0
+	for file in user_files:
+		openfile = open(file)
+		fraction = (test_data_start - page_counter) / len(openfile)
+		if fraction >= 1:
+			learn_from(openfile,1)
+		else if fraction > 0:
+			learn_from(openfile,fraction)
+
 
 
 

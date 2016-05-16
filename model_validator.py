@@ -51,24 +51,34 @@ def validate(pages):
 					break
 			j += 1
 
-	return validation, average(distances)
+	return validation, own_average(distances)
 
+def own_average(lst):
+	if len(lst) > 0:
+		return average(lst)
+	else:
+		return 0
 
 def validate_directory(directory="data"):
 	"""
 	"""
+	prediction_list = []
+	distance_list = []
+
 	users = {}
 	for file in os.listdir("./"+directory):
 		if file.endswith(".csv"):
 			s = file.split('_')
 			if s[0] not in users:
-				files[s[0]] = [file]
+				users[s[0]] = ["./"+directory+"/"+file]
 			else:
-				users[0]].append(file)
+				users[s[0]].append("./"+directory+"/"+file)
 
+	print(str(users))
 	for user in users:
-		validate_user(users[user])
-
+		result = validate_user(users[user])
+		prediction_list.append(result[0])
+		distance_list.append(result[1])
 
 	return users
 
@@ -77,28 +87,43 @@ def validate_user(user_files):
 	"""
 	pred.clear_model()
 
+	prediction_list = []
+	distance_list = []
+
 
 	page_counter = 0
 	for file in user_files:
-		openfile = open(file)
+		openfile = open(file).readlines()
 		page_counter += len(openfile)
 
 	# The test data set is the last 30% of the total data set
-	test_data_start = 0.7 * page_counter
+	test_data_start = int(round(0.7 * page_counter))
 
 	page_counter = 0
 	for file in user_files:
-		openfile = open(file)
+		openfile = open(file).readlines()
 		fraction = (test_data_start - page_counter) / len(openfile)
+		print(fraction)
 		if fraction >= 1:
-			learn_from(openfile,1)
-		else if fraction > 0:
-			learn_from(openfile,fraction)
+			pred.learn_from(open(file),1)
+		elif fraction > 0:
+			pred.learn_from(open(file),fraction)
+			pages = preprocess(file,fraction)
+			result = validate(pages)
+			#print("RESULT: " + str(result))
+			prediction_list.append(result[0])
+			distance_list.append(result[1])
+		else:
+			pages = preprocess(file,fraction)
+			result = validate(pages)
+			prediction_list.append(result[0])
+			distance_list.append(result[1])
+
+	#print("PREDICTION LIST:" + str(prediction_list))
+	#print("DISTANCE LIST:" + str(distance_list))
+	return int(round(average(prediction_list))), int(round(average(distance_list)))
 
 
-
-
-    
 
 def train_model(filename):
 	"""
@@ -107,7 +132,7 @@ def train_model(filename):
 	pred.learn_from(open(filename))
 
 
-def preprocess(filename):
+def preprocess(filename,fraction=0):
 	"""
 	"""
 	# Read the csv file as a list of strings.
@@ -115,7 +140,10 @@ def preprocess(filename):
 	# Make a list of 'event' dictionaries.
 	events = pred.parse(lines)
 	page_visits = pred.make_page_visits(events)
-	pages = [page_visit['url'] for page_visit in page_visits]
+
+	n = int(round(fraction*len(page_visits)))
+
+	pages = [page_visit['url'] for page_visit in page_visits[n:]]
 
 	return pages
 	

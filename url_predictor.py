@@ -161,24 +161,6 @@ def add_to_graph(page_visits):
     # Return the graph.
     return nodes
 
-def add_page_visit_to_graph():
-    pass
-
-
-previous_url = ''
-previous_t = None
-def add_one_url_to_model(url):
-    """ 
-    """
-    t = datetime.datetime.now()
-    page_visit = {
-        'url': curent_event['url'],
-        't': curent_event['t'], # = time of page entry
-        'duration' : duration,
-    }
-    previous_url = url
-    previous_t = t
-
 
 
 psl = PublicSuffixList()
@@ -207,7 +189,7 @@ def get_guesses(url_1, beta=1.1, max_len=12):
     """
 
     # Incremental learning.
-    add_one_url_to_model(url_1)
+    #add_one_url_to_model(url_1)
 
     # Predict nothing if we haven't seen the given url before.
     if url_1 not in nodes:
@@ -269,7 +251,7 @@ def get_guesses(url_1, beta=1.1, max_len=12):
         for path in destinations[url_2]['paths']:
             # A path from A to B, represented as ('A', 'B'), has 
             # length 1, hence the "- 1".
-            k = len(path) - 1
+            k = len(path) - 2
             probabilities[k] += probability(path)
         # Average these probabilities over all considered path lengths.
         p_travel = average(probabilities)
@@ -327,7 +309,7 @@ def get_guesses(url_1, beta=1.1, max_len=12):
                         destinations[url_2]['len_weighted_Bayes_score'])
 
     # Take the x highest scoring candidates.
-    x = min(3, len(guesses))
+    x = min(3, len(candidates))
     guesses = candidates[:x]
     # Print info about them.
     print_info(guesses, destinations)

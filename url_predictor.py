@@ -4,31 +4,21 @@
 
 import json
 from dateutil.parser import parse as parse_datetime
+from urllib.parse import urlsplit
+from publicsuffix import PublicSuffixList
 from collections import defaultdict
 from time import time
 from numpy import average, median
 from math import tanh
-
-from urllib.parse import urlsplit
-from publicsuffix import PublicSuffixList
-psl = PublicSuffixList()
-def get_domain(url):
-    """ Extracts the domain name part of the given URL.
-    """
-    # 'netloc' is the subdomain(s) plus the domain name.
-    netloc = urlsplit(url).netloc
-    # Extract only the domain name itself ('public suffix').
-    # See http://stackoverflow.com/a/15460894/2611913
-    domain_name = psl.get_public_suffix(netloc)
-    return domain_name
 
 
 # Our graph and model. Every node corresponds with a web page.
 nodes = {}
 # 
 # Structure of a 'nodes' entry, after all calculation for it is done
-# (all values have a default value for their data type here):
+# (all data has a default value for its data type here):
 # 
+# nodes = 
 # {
 #   'url_A': {
 #       'time_on_page_data': [],
@@ -48,32 +38,32 @@ def clear_model():
     nodes = {}
 
 
-def learn_from(csv_file_handle):
+def learn_from(csv_file_handle, fraction=1):
     """ Trains a model -- that predicts the most likely destination 
     pages for each starting url -- on a csv file.
     (The csv file should be supplied as a file handle.
     The model is stored in the global variable 'nodes').
+
+
+    Repeated calls will expand the existing model.
+
+    The model is only trained on the first 'fraction' page visits
+    in the data.
     """
-    # PREPROCESSING
-    # 
     # Read the csv file as a list of strings.
     lines = csv_file_handle.readlines()
     # Make a list of 'event' dictionaries.
     events = parse(lines)
     # Make a list of 'page visit' dictionaries.
     page_visits = make_page_visits(events)
+    # Calculate the number of page visits that should be trained on.
+    n = int(round(fraction*len(page_visits)))
     # Make a graph (as a dictionary of nodes), discarding absolute
     # temporal information and higher-order sequential information.
     # (We modify the global object 'nodes' here).
-    make_graph(page_visits)
-
+    add_to_graph(page_visits[:n])
     # For debugging in shell.
     return nodes
-
-
-    # TRAINING MODEL
-    # 
-    # ... Done on the fly for each starting url.
 
 
 def parse(lines):
@@ -99,7 +89,8 @@ def parse(lines):
 
 
 def make_page_visits(events):
-    """ Constructs page visit objects (as dictionaries).
+    """ Constructs page visit objects (as dictionaries) from a list
+    of events.
     See the "Data" section in the report and its accompanying figure.
     """
     # The list we'll fill with page visit objects.
@@ -115,25 +106,18 @@ def make_page_visits(events):
             # page.
             timedelta = next_event['t'] - curent_event['t']
             duration = timedelta.total_seconds()
-            # Determine how this page was left.
-            if next_event['event_type'] == 'click':
-                exit_type = 'click'
-            elif next_event['event_type'] == 'polling':
-                exit_type = 'forward'
-            else:
-                exit_type = 'cut'
             # Create a new page visit object.
             page_visits.append({
                 'url': curent_event['url'],
                 't': curent_event['t'], # = time of page entry
                 'duration' : duration,
-                'exit_type': exit_type,
             })
     return page_visits
 
 
-def make_graph(page_visits):
+def add_to_graph(page_visits):
     """ Constructs a directed graph from the page visits list.
+    An existing graph will be extended.
     """
     # The graph is a dictionary of nodes. The keys are page urls,
     # the values contain urls of pages following the page of the key 
@@ -177,14 +161,53 @@ def make_graph(page_visits):
     # Return the graph.
     return nodes
 
+def add_page_visit_to_graph():
+    pass
 
+
+previous_url = ''
+previous_t = None
+def add_one_url_to_model(url):
+    """ 
+    """
+    t = datetime.datetime.now()
+    page_visit = {
+        'url': curent_event['url'],
+        't': curent_event['t'], # = time of page entry
+        'duration' : duration,
+    }
+    previous_url = url
+    previous_t = t
+
+
+
+psl = PublicSuffixList()
+def get_domain(url):
+    """ Extracts the domain name part of the given URL.
+    """
+    # 'netloc' is the subdomain(s) plus the domain name.
+    netloc = urlsplit(url).netloc
+    # Extract only the domain name itself ('public suffix').
+    # See http://stackoverflow.com/a/15460894/2611913
+    domain_name = psl.get_public_suffix(netloc)
+    return domain_name
 
 
 # --------------------------------------------------------------------
 
-def get_guesses(url_1, beta=1.1):
+def get_guesses(url_1, beta=1.1, max_len=12):
     """ Given a starting url 'url_1', returns a list of most likely
-    destination pages. """
+    destination pages.
+
+    A higher 'beta' (> 1) gives a higher weight to destination pages
+    further away.
+
+    Only desination pages that are at least within 'max_len' steps 
+    of 'url_1' will be considered.
+    """
+
+    # Incremental learning.
+    add_one_url_to_model(url_1)
 
     # Predict nothing if we haven't seen the given url before.
     if url_1 not in nodes:
@@ -211,11 +234,11 @@ def get_guesses(url_1, beta=1.1):
 
     # A dictionary indexed by possible destination page.
     # The values contain data about the probability of this page
-    # being the page the user wants to go, given he is at 'url_1'.
+    # being the page that the user wants to go to, given he is at 
+    # 'url_1'.
     destinations = {}
 
     # Generate all paths up to a certain depth starting from 'url_1'.
-    max_len = 12
     paths = generate_paths(start_url=url_1, max_len=max_len)
     # Aggregate them by destination page.
     for k in range(1, max_len+1):
@@ -337,10 +360,10 @@ def print_info(guesses, destinations):
 
 def squash(t):
     """ Applies a sigmoid function to the input value.
-    For positive values t, the output will be between 0 and 1.
+    For positive input values, the output will be between 0 and 1.
 
-    Used to squash duration values: a duration of a page visit of 4 
-    seconds should be given a higher weight than a duration of 2 
+    Used to squash duration values: a page visit duration of 4 seconds
+    should be given a clearly higher weight than a duration of 2
     seconds, BUT a duration of 40 seconds should yield only a slightly
     higher weight than a duration of 10 seconds.
 
@@ -438,5 +461,4 @@ def test():
     #    print(url_predictor.shorten_url(pv['url'], 80))
 
 if __name__ == '__main__':
-    learn_from(open('u23_1.csv'))
     test()

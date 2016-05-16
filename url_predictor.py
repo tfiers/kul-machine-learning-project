@@ -36,7 +36,7 @@ nodes = {}
 def clear_model():
     """ Clears the graph.
     """
-    nodes = {}
+    nodes.clear()
 
 
 def learn_from(csv_file_handle, fraction=1):
@@ -224,7 +224,7 @@ def get_domain(url):
 
 # --------------------------------------------------------------------
 
-def get_guesses(url_1, beta=2, max_len=12):
+def get_guesses(url_1, beta=1.1, max_len=12):
     """ Given a starting url 'url_1', returns a list of most likely
     destination pages.
 
@@ -345,7 +345,7 @@ def get_guesses(url_1, beta=2, max_len=12):
         # Bayes probability score.
         # This is p(D=P2 | S=P1)
         destinations[url_2]['Bayes_p'] = \
-            p_travel                 * N_prop * dt_prop   #/ p_P1
+            p_travel * same_domain * N_prop * dt_prop   #/ p_P1
         #   p(S=P1 | D=P2)           * p(D=P2)             / p(S=P1)
         # (The denominator is omitted as this is independent of P2).
 

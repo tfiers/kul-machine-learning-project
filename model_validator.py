@@ -4,8 +4,9 @@ import json
 import os
 from csv import *
 from numpy import average,median
+import matplotlib.pyplot as plt
 
-def train_and_validate(csv_file_training,csv_file_validate):
+def train_and_validate(csv_file_training,csv_file_validate,beta=1.1,max_len=12,alpha=0):
 	"""
 	"""
 	# Train the prediction model with the data from the training set
@@ -15,11 +16,11 @@ def train_and_validate(csv_file_training,csv_file_validate):
 	# Validate the model on the test data
 	# Returns a dictionary with the number of primary, secondary and tertiary 
 	#	predictions that were correct
-	validation = validate(pages)
+	validation = validate(pages,beta,max_len,alpha)
 
 	return validation
 
-def validate(pages):
+def validate(pages,beta=1.1,max_len=12,alpha=0):
 	"""
 	Expects a list of web pages representing a web session
 	Calculates the number of correct predictions
@@ -35,7 +36,7 @@ def validate(pages):
 		page = pages[i]
 
 		print("PAGE: " + "i:" + str(i) + " " + page)
-		predictions = pred.get_guesses(page)
+		predictions = pred.get_guesses(page,beta,max_len,alpha)
 
 		j = 0
 		maxJ = len(predictions)
@@ -51,19 +52,13 @@ def validate(pages):
 					break
 			j += 1
 
-	return validation, own_average(distances)
+	return [validation, own_average(distances), len(pages)]
 
-def own_average(lst):
-	if len(lst) > 0:
-		return average(lst)
-	else:
-		return 0
 
 def validate_directory(directory="data"):
 	"""
 	"""
-	prediction_list = []
-	distance_list = []
+	prediction_dict = {}
 
 	users = {}
 	for file in os.listdir("./"+directory):
@@ -74,55 +69,126 @@ def validate_directory(directory="data"):
 			else:
 				users[s[0]].append("./"+directory+"/"+file)
 
-	print(str(users))
 	for user in users:
+		print(user)
 		result = validate_user(users[user])
-		prediction_list.append(result[0])
-		distance_list.append(result[1])
+		prediction_dict[user] = [result[0],result[1],result[2]]
 
-	return users
+	return prediction_dict
 
 def validate_user(user_files):
 	"""
 	"""
+	valid_user_files = []
+	for file in user_files:
+		try:
+			pred.parse(open(file).readlines())
+			valid_user_files.append(file)
+		except:
+			pass
 	pred.clear_model()
 
 	prediction_list = []
 	distance_list = []
 
 
-	page_counter = 0
-	for file in user_files:
+	nb_pages = 0
+	for file in valid_user_files:
 		openfile = open(file).readlines()
-		page_counter += len(openfile)
+		nb_pages += len(openfile)
 
 	# The test data set is the last 30% of the total data set
-	test_data_start = int(round(0.7 * page_counter))
+	test_data_start = int(round(0.7 * nb_pages))
 
+	nb_test_lines = 0
 	page_counter = 0
-	for file in user_files:
+	for file in valid_user_files:
+		print("VALID FILE: " + file)
 		openfile = open(file).readlines()
-		fraction = (test_data_start - page_counter) / len(openfile)
-		print(fraction)
-		if fraction >= 1:
-			pred.learn_from(open(file),1)
-		elif fraction > 0:
-			pred.learn_from(open(file),fraction)
-			pages = preprocess(file,fraction)
-			result = validate(pages)
-			#print("RESULT: " + str(result))
-			prediction_list.append(result[0])
-			distance_list.append(result[1])
-		else:
-			pages = preprocess(file,fraction)
-			result = validate(pages)
-			prediction_list.append(result[0])
-			distance_list.append(result[1])
+		if len(openfile) > 0:
+			fraction = (test_data_start - page_counter) / len(openfile)
+			page_counter += len(openfile)
+			if fraction >= 1:
+				print("1111111")
+				pred.learn_from(open(file),1)
+			elif fraction > 0:
+				print("2222222")
+				pred.learn_from(open(file),fraction)
+				pages = preprocess(file,fraction)
+				nb_test_lines += len(pages)
+				result = validate(pages)
+				prediction_list.append(result[0])
+				distance_list.append(result[1])
+			else:
+				print("3333333")
+				pages = preprocess(file,0)
+				nb_test_lines += len(pages)
+				result = validate(pages)
+				prediction_list.append(result[0])
+				distance_list.append(result[1])
 
 	#print("PREDICTION LIST:" + str(prediction_list))
 	#print("DISTANCE LIST:" + str(distance_list))
-	return int(round(average(prediction_list))), int(round(average(distance_list)))
+	return [sum(prediction_list), own_average(distance_list), nb_test_lines]
 
+#### EXPERIMENTS ####
+
+def experiment_beta(csv_file_training,csv_file_validate,minI,maxI):
+	lst = []
+	i = minI
+	while i < maxI:
+		result = train_and_validate(csv_file_training,csv_file_validate,i)
+		lst.append([i,result[0],result[1],result[2]])
+		i += 0.1
+
+	# matplotlib
+	xlist = []
+	ylist1 = []
+	ylist2 = []
+	for l in lst:
+		xlist.append(l[0])
+		ylist1.append(int(round(l[1]/l[3]*100)))
+		ylist2.append(l[2])
+
+	print(xlist)
+	print(ylist1)
+	accuracy = plt.plot(xlist,ylist1,'r',label='Accuracy (%)')
+	distance = plt.plot(xlist,ylist2,'b',label='Distance (nb clicks)')
+	plt.axis([0,10,0,28])
+	plt.legend()
+	plt.show()
+
+	return lst
+
+def experiment_alpha(csv_file_training,csv_file_validate,minI,maxI):
+	lst = []
+	i = minI
+	while i < maxI:
+		result = train_and_validate(csv_file_training,csv_file_validate,1.1,12,i)
+		lst.append([i,result[0],result[1],result[2]])
+		i += 0.1
+
+	# matplotlib
+	xlist = []
+	ylist1 = []
+	ylist2 = []
+	for l in lst:
+		xlist.append(l[0]-1)
+		ylist1.append(int(round(l[1]/l[3]*100)))
+		ylist2.append(l[2])
+
+	print(xlist)
+	print(ylist1)
+	accuracy = plt.plot(xlist,ylist1,'r',label='Accuracy (%)')
+	distance = plt.plot(xlist,ylist2,'b',label='Distance (nb clicks)')
+	plt.axis([-1,9,0,25])
+	plt.legend()
+	plt.show()
+
+	return lst
+
+
+#### UTILITY FUNCTIONS ####
 
 
 def train_model(filename):
@@ -163,3 +229,10 @@ def parse(lines):
 		pages.append(data[2])
 
 	return pages
+
+
+def own_average(lst):
+	if len(lst) > 0:
+		return average(lst)
+	else:
+		return 0

@@ -228,7 +228,7 @@ def get_domain(url):
 
 # --------------------------------------------------------------------
 
-def get_guesses(url_1, beta=1.1, max_len=12):
+def get_guesses(url_1, beta=1.1, max_len=12, alpha = 0):
     """ Given a starting url 'url_1', returns a list of most likely
     destination pages.
 
@@ -327,6 +327,10 @@ def get_guesses(url_1, beta=1.1, max_len=12):
 
         # Check if url_1 and url_2 are on the same domain.
         same_domain = (P1['domain'] == P2['domain'])
+        if same_domain:
+            same_domain = 1 + alpha
+        else:
+            same_domain = alpha
 
         # Calculate the length of the shortest path between P1 and P2.
         minlen = min(len(path)-1 \
